@@ -132,7 +132,7 @@ vi.mock('@app/ui/anarkai', () => ({
 	InspectorSection: (props: { children?: JSX.Children }) => <section>{props.children}</section>,
 }))
 
-vi.mock('../HardListSearchPicker', () => ({
+vi.mock('../ComboSearchPicker', () => ({
 	default: (props: {
 		items?: readonly { item?: unknown; label?: string }[]
 		onSelect?: (item: { item?: unknown; label?: string }) => void

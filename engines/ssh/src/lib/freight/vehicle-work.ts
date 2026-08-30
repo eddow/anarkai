@@ -667,6 +667,56 @@ function dockedVehicleProviderJob(game: Game, vehicle: Vehicle): ProposedJob | u
 }
 
 /**
+ * Provider-facing "empty vehicle" job for a loaded vehicle that is not already being serviced.
+ *
+ * "Offload = empty the vehicle" is the minimum fallback for ANY loaded vehicle — free (no service)
+ * OR mid-transit on a line service whose cargo the line cannot sink. Line-continuation/entry for
+ * deliverable cargo is proposed separately by the character-scoped planner (`findVehicleHopJob`)
+ * at higher priority; this only guarantees the offload job is always visible.
+ *
+ * This is the vehicle-scoped counterpart to `pickMaintenanceForVehicle` (character-scoped): it makes
+ * `collectVehicleAdvertisedJobs` (the UI's `vehicle.advertisedJobs`) propose the empty job even when
+ * no idle character happens to be ranking it, so a loaded vehicle never sits silent.
+ *
+ * TODO(lines): instead of always emptying, scan ALL lines (not just the vehicle's affected
+ * `servedLines`) for one that demands the loaded good, and prefer entering/continuing that line so
+ * the cargo becomes useful rather than dumped.
+ */
+function loadedVehicleOffloadProviderJob(game: Game, vehicle: Vehicle): ProposedJob | undefined {
+	// A vehicle already mid-maintenance (offload/load/park) is handled by that run.
+	if (isVehicleMaintenanceService(vehicle.service)) return undefined
+	if (!vehicleHasStock(vehicle)) return undefined
+	// A docked vehicle (bay) is handled by the dock/bay convey branches above.
+	if (vehicle.isDocked) return undefined
+
+	// Offload: empty the vehicle onto the nearest eligible non-burdening tile.
+	const unload = pickUnloadTargetForVehicle(game, vehicle)
+	if (!unload) return undefined
+	const targetCoord = toAxialCoord(unload.tile.position)
+	if (!targetCoord) return undefined
+	traces.vehicle.log?.('vehicleJob.maintenance.loadedVehicle.offload', {
+		characterUid: '',
+		stock: vehicle.storage.stock,
+		serviceKind: isVehicleLineService(vehicle.service) ? 'line' : 'none',
+		targetCoord,
+	})
+	return asVehicleProposedJob(
+		{
+			job: 'vehicleOffload',
+			urgency: unload.urgency,
+			fatigue: 1,
+			vehicle,
+			maintenanceKind: 'unloadToTile',
+			targetCoord,
+			approachPath: [],
+			path: [],
+		},
+		vehicle,
+		vehicle.tile
+	)
+}
+
+/**
  * Tile is a legal target for `unloadToTile` / `park`: undeveloped, not under construction,
  * not residential, not currently burdened, and not an endpoint of any road segment. The vehicle's
  * own tile is excluded by callers.
@@ -1247,8 +1297,13 @@ function pickMaintenanceForVehicle(
 			}
 			return initialCandidate
 		}
-		// Structural "could begin gather line from loaded cargo" must not suppress maintenance unless
-		// begin-service is actually actionable for this worker (path, unload anchor, zone load, etc.).
+		// Line-entry is higher priority than offload: a loaded free vehicle whose cargo is expected on
+		// its affected line should enter/continue that line instead of emptying onto a tile. The
+		// structural "could begin gather line from loaded cargo" check must not suppress maintenance
+		// unless begin-service is actually actionable for this worker (path, unload anchor, zone load).
+		// TODO(lines): we only consult the vehicle's AFFECTED line(s) here
+		// (`loadedStockCanEnterServedGatherLine` walks `vehicle.servedLines`). To make a loaded good
+		// genuinely useful, later scan ALL lines for one that demands it — not just the served ones.
 		if (loadedStockCanEnterServedGatherLine(game, vehicle) && initialServiceCandidate()) {
 			traces.vehicle.log?.('vehicleJob.maintenance.skipLoadedCanEnterLine', {
 				characterUid: debugObjectId(character) ?? '',
@@ -1283,7 +1338,10 @@ function pickMaintenanceForVehicle(
 			unloadDistance: bestUnloadDistance,
 		} = pickLoadUnloadCandidatesForVehicle(game, vehicle)
 		if (bestLoad || bestUnload) {
-			if (bestLoad && bestLoadDistance <= bestUnloadDistance) {
+			// A loaded free vehicle must always be able to empty itself: `unloadToTile` (offload) is the
+			// minimum fallback and must not be displaced by `loadFromBurden` (loading MORE goods), which
+			// would otherwise win on distance and keep the vehicle loaded indefinitely.
+			if (bestLoad && !vehicleHasStock(vehicle) && bestLoadDistance <= bestUnloadDistance) {
 				if (
 					vehicleServesTradeLine(vehicle) &&
 					!isJointLineLoadCandidate(character, vehicle, bestLoad)
@@ -1420,9 +1478,20 @@ function findVehicleOffloadJobApproach(
 	game: Game,
 	character: Character
 ): VehicleOffloadJob | undefined {
+	traces.vehicle.log?.('vehicleJob.offload.entry', {
+		characterUid: debugObjectId(character) ?? '',
+		characterName: character.name,
+		driving: character.driving,
+		operates: !!character.operates,
+		vehicleCount: [...game.vehicles].length,
+	})
 	if (character.driving) return undefined
 	if (character.operates) return undefined
-	if (hasActiveVehicleDockMovement(game)) return undefined
+	// A global dock-movement gate would starve the resume of an in-progress maintenance service
+	// (e.g. a loaded vehicle stuck in `unloadToTile`) whenever ANY hive has an active dock convey.
+	// Compute it once and apply it ONLY to NEW `loadFromBurden` maintenance (which competes with the
+	// dock convey for loose goods) — never to resume, `park`, or `unloadToTile`.
+	const dockMovementActive = hasActiveVehicleDockMovement(game)
 
 	const characterCoord = toAxialCoord(character.position)
 	if (!characterCoord) return undefined
@@ -1437,7 +1506,14 @@ function findVehicleOffloadJobApproach(
 
 	for (const vehicle of game.vehicles) {
 		if (!isLineFreightVehicleType(vehicle.vehicleType)) continue
-		if (!vehicleHasNoOtherOperator(game, vehicle, character)) continue
+		if (!vehicleHasNoOtherOperator(game, vehicle, character)) {
+			traces.vehicle.log?.('vehicleJob.offload.approach.skip.otherOperator', {
+				characterUid: debugObjectId(character) ?? '',
+				vehicleUid: debugObjectId(vehicle) ?? '',
+				stock: vehicle.storage.stock,
+			})
+			continue
+		}
 
 		// Phase 0 (pathfind-to-score → hex-distance score): the per-vehicle `findPathForCharacter`
 		// here was the dominant remaining cost (O(V) unbounded A* per re-plan, only to read `.length`
@@ -1450,7 +1526,15 @@ function findVehicleOffloadJobApproach(
 			// `maintenanceServiceToJob` is called only for its validity check + urgency; the returned
 			// job is discarded (the winner is rebuilt below). The path arg is therefore irrelevant.
 			const job = maintenanceServiceToJob(service, vehicle, [])
-			if (!job) continue
+			if (!job) {
+				traces.vehicle.log?.('vehicleJob.offload.approach.skip.maintenanceNoJob', {
+					characterUid: debugObjectId(character) ?? '',
+					vehicleUid: debugObjectId(vehicle) ?? '',
+					serviceKind: service.kind,
+					stock: vehicle.storage.stock,
+				})
+				continue
+			}
 			const tile = game.hex.getTile(service.targetCoord)
 			if (!tile) continue
 			// Single arbitrary resume target — no need for a flood. A direct bounded path search is
@@ -1460,7 +1544,14 @@ function findVehicleOffloadJobApproach(
 			const reachable =
 				axial.key(vehicleCoord) === axial.key(targetCoord) ||
 				!!game.hex.findPathForVehicleServiceBorder(vehicleCoord, tile.position, maxWalkTime)
-			if (!reachable) continue
+			if (!reachable) {
+				traces.vehicle.log?.('vehicleJob.offload.approach.skip.maintenanceUnreachable', {
+					characterUid: debugObjectId(character) ?? '',
+					vehicleUid: debugObjectId(vehicle) ?? '',
+					serviceKind: service.kind,
+				})
+				continue
+			}
 			const candidate: MaintenanceCandidate =
 				service.kind === 'loadFromBurden'
 					? {
@@ -1485,12 +1576,28 @@ function findVehicleOffloadJobApproach(
 		}
 		if (isVehicleLineService(service)) {
 			if (vehicle.isDocked && dockedVehicleHasPendingDockWork(vehicle)) continue
-			if (projectedLineStopForVehicleHop(game, character, vehicle)) continue
+			if (projectedLineStopForVehicleHop(game, character, vehicle)) {
+				traces.vehicle.log?.('vehicleJob.offload.approach.skip.lineHasHop', {
+					characterUid: debugObjectId(character) ?? '',
+					vehicleUid: debugObjectId(vehicle) ?? '',
+					stock: vehicle.storage.stock,
+					isDocked: vehicle.isDocked,
+				})
+				continue
+			}
 			const reachability = vehicleMaintenanceReachability(game, vehicle, character)
 			const candidate = pickParkingTargetForVehicle(game, vehicle, (tile) =>
 				maintenanceReachabilityCanReach(reachability, tile)
 			)
-			if (!candidate) continue
+			if (!candidate) {
+				traces.vehicle.log?.('vehicleJob.offload.approach.skip.lineNoParkTarget', {
+					characterUid: debugObjectId(character) ?? '',
+					vehicleUid: debugObjectId(vehicle) ?? '',
+					stock: vehicle.storage.stock,
+					isDocked: vehicle.isDocked,
+				})
+				continue
+			}
 			const maintenanceCandidate: ParkCandidate = {
 				kind: 'park',
 				tile: candidate.tile,
@@ -1505,14 +1612,41 @@ function findVehicleOffloadJobApproach(
 		if (service) continue
 
 		const candidate = pickMaintenanceForVehicle(game, vehicle, character)
-		if (!candidate) continue
+		if (!candidate) {
+			traces.vehicle.log?.('vehicleJob.offload.approach.skip.noMaintenanceCandidate', {
+				characterUid: debugObjectId(character) ?? '',
+				vehicleUid: debugObjectId(vehicle) ?? '',
+				stock: vehicle.storage.stock,
+				hasStock: vehicleHasStock(vehicle),
+				servedLines: vehicle.servedLines.length,
+			})
+			continue
+		}
+		// Only NEW `loadFromBurden` maintenance competes with the dock convey for loose goods, so
+		// it is the only candidate the dock-movement gate should suppress. `park` (empty vehicle
+		// moving off a burdened tile) and `unloadToTile` (dropping cargo) are always safe and must
+		// not be gated — gating them wedges empty/loaded vehicles whenever a dock convey is active.
+		if (dockMovementActive && candidate.kind === 'load') {
+			traces.vehicle.log?.('vehicleJob.offload.approach.skip.dockMovementGatedLoad', {
+				characterUid: debugObjectId(character) ?? '',
+				vehicleUid: debugObjectId(vehicle) ?? '',
+				stock: vehicle.storage.stock,
+			})
+			continue
+		}
 		if (candidate.kind === 'load' && isJointLineLoadCandidate(character, vehicle, candidate)) {
 			continue
 		}
 		const score = maintenanceCandidateScore(candidate, distance)
 		if (!best || score > best.score) best = { score, vehicle, candidate }
 	}
-	if (!best) return undefined
+	if (!best) {
+		traces.vehicle.log?.('vehicleJob.offload.approach.none', {
+			characterUid: debugObjectId(character) ?? '',
+			dockMovementActive,
+		})
+		return undefined
+	}
 	// Deferred real path — computed once for the winner (Phase 0). If the hex-closest vehicle is
 	// walled off, this returns undefined and the character wanders (self-correcting, same trade-off
 	// as `tailorProposedJob`).
@@ -1615,6 +1749,14 @@ function findAdvertisedVehicleOffloadJob(
 		for (const proposed of collectVehicleAdvertisedJobs(game, vehicle)) {
 			if (proposed.source.kind !== 'vehicle') continue
 			if (proposed.job !== 'vehicleOffload') continue
+			// A loaded line-service vehicle's `unloadToTile` is UI-only: executing it would flow into
+			// `allocateVehicleServiceForJob`, which throws "line service already active" for non-park
+			// maintenance and re-wedges the vehicle. Its `park` fallback (empty, docked) stays executable.
+			if (
+				isVehicleLineService(vehicle.service) &&
+				proposed.maintenanceKind === 'unloadToTile'
+			)
+				continue
 			const score = proposedJobScore(proposed, distance)
 			if (!best || score > best.score)
 				best = {
@@ -2565,6 +2707,11 @@ export function collectVehicleAdvertisedJobs(game: Game, vehicle: Vehicle): Prop
 			dockCandidates,
 		})
 	}
+	// A FREE loaded vehicle (no service, cargo aboard) must still propose a job: line-entry when the
+	// good is expected on its affected line, else "empty the vehicle" (unloadToTile). Without this the
+	// vehicle-scoped `advertisedJobs` is empty and the UI shows no proposed work.
+	const loadedOffloadJob = loadedVehicleOffloadProviderJob(game, vehicle)
+	if (loadedOffloadJob) return [loadedOffloadJob]
 	return dockedJob ? [dockedJob] : []
 }
 

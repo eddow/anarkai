@@ -125,6 +125,10 @@ Now **hive plot variables** — see [`./plots.md`](./plots.md) §"Hive plot vari
 
 Engineers shouldn't have a specified plot - indeed, specifying a plot to an alveolus should be well defined and understood - a woodchopper might help clean a residential area outside of its plot - so for him, a plot is "a restriction beside clan's need"
 
+### Dust under the rug
+
+Many agents have *disabled* errors by "return false" of pure and simple "try again later" policy - all these case of dust put under the rug have to be hunted down and errors revealed
+
 ## New tile types
 
 - Factory path: allow passing through for vehicles, but act as alveoli and can be occupied for conveying (blocking temporarily) - will be mostly avoided by setting it to a high price in path finding

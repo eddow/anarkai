@@ -272,13 +272,19 @@ describe('StorageAlveolus Configuration', () => {
 		alveolus.storageBuffers = { wood: 1 }
 
 		// maxAmount for wood is 2; with a buffer of 1 the storage must not "fill
-		// toward max" — once it holds 1 it should stop demanding.
+		// toward max" — empty, it demands back up to its buffer.
 		expect(alveolus.workingGoodsRelations.wood).toMatchObject({
 			advertisement: 'demand',
 			priority: '1-buffer',
 		})
 
+		// Holding exactly its buffer it stops demanding (no fill-toward-max churn),
+		// but its reserve stays available to 2-use consumers (e.g. a sawmill) rather
+		// than being silently hoarded.
 		alveolus.storage.addGood('wood', 1)
-		expect(alveolus.workingGoodsRelations.wood).toBeUndefined()
+		expect(alveolus.workingGoodsRelations.wood).toMatchObject({
+			advertisement: 'provide',
+			priority: '2-use',
+		})
 	})
 })

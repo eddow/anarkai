@@ -7,9 +7,10 @@ function reachTargetTileLoop(jobPlan)
 		walk.until path
 	while tile.position.q != target.tile.position.q or tile.position.r != target.tile.position.r
 		path = find.path(target.tile, false)
-		if not path then error "No path found to target"
+		if not path then return false
 	loop
 	walk.enter
+	return true
 end function
 
 function assignAlveolus(jobPlan)
@@ -29,7 +30,7 @@ function goWork(jobPlan)
 end function
 
 function harvest(jobPlan)
-	reachTargetTileLoop jobPlan
+	if not reachTargetTileLoop(jobPlan) then return false
 	assignAlveolus jobPlan
 	work.prepare jobPlan
 	alveolus = jobPlan.target
@@ -52,7 +53,7 @@ function harvest(jobPlan)
 end function
 
 function transform(jobPlan)
-	reachTargetTileLoop jobPlan
+	if not reachTargetTileLoop(jobPlan) then return false
 	assignAlveolus jobPlan
 	work.prepare jobPlan
 	alveolus = jobPlan.target
@@ -91,7 +92,7 @@ function convey(jobPlan)
 end function
 
 function construct(jobPlan)
-	reachTargetTileLoop jobPlan
+	if not reachTargetTileLoop(jobPlan) then return false
 	assignAlveolus jobPlan
 	work.prepare jobPlan
 	engineer = jobPlan.target
@@ -104,14 +105,14 @@ function construct(jobPlan)
 end function
 
 function validateHivePlan(jobPlan)
-	reachTargetTileLoop jobPlan
+	if not reachTargetTileLoop(jobPlan) then return false
 	assignAlveolus jobPlan
 	work.prepare jobPlan
 	work.validateHivePlanStep jobPlan
 end function
 
 function forester(jobPlan)
-	reachTargetTileLoop jobPlan
+	if not reachTargetTileLoop(jobPlan) then return false
 	assignAlveolus jobPlan
 	work.prepare jobPlan
 	forester = jobPlan.target
@@ -124,7 +125,7 @@ function forester(jobPlan)
 end function
 
 function foundation(jobPlan)
-	reachTargetTileLoop jobPlan
+	if not reachTargetTileLoop(jobPlan) then return false
 	assignAlveolus jobPlan
 	work.prepare jobPlan
 	engineer = jobPlan.target
@@ -137,7 +138,7 @@ function foundation(jobPlan)
 end function
 
 function defragment(jobPlan)
-	reachTargetTileLoop jobPlan
+	if not reachTargetTileLoop(jobPlan) then return false
 	assignAlveolus jobPlan
 	work.prepare jobPlan
 	alveolus = jobPlan.target

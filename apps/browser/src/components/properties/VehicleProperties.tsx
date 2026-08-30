@@ -25,9 +25,9 @@ import {
 import type { GoodType, JobType } from 'ssh/types/base'
 import { type AxialCoord, axial, toAxialCoord } from 'ssh/utils'
 import { filterSet, mapSet } from 'ssh/utils/iter'
+import ComboSearchPicker, { type ComboSearchPickerItem } from '../ComboSearchPicker'
 import EntityBadge from '../EntityBadge'
 import GoodsList from '../GoodsList'
-import HardListSearchPicker, { type HardListSearchPickerItem } from '../HardListSearchPicker'
 import InspectorObjectLink from '../InspectorObjectLink'
 import LinkedEntityControl from '../LinkedEntityControl'
 import PropertyGrid from '../PropertyGrid'
@@ -335,7 +335,7 @@ function lineHint(game: Vehicle['game'], line: FreightLineDefinition): string {
 
 function assignableLineItems(
 	vehicle: Vehicle
-): (HardListSearchPickerItem & { item: FreightLineDefinition })[] {
+): (ComboSearchPickerItem & { item: FreightLineDefinition })[] {
 	if (!isLineFreightVehicleType(vehicle.vehicleType)) return []
 	const assigned = new Set((vehicle.servedLines ?? []).map((line) => line.name))
 	return mapSet(
@@ -401,7 +401,7 @@ const VehicleProperties = (
 		)
 	const availableLineItems = () => (props.vehicle ? assignableLineItems(props.vehicle) : [])
 
-	const assignLine = (item: HardListSearchPickerItem & { item: FreightLineDefinition }) => {
+	const assignLine = (item: ComboSearchPickerItem & { item: FreightLineDefinition }) => {
 		const vehicle = props.vehicle
 		if (!vehicle) return
 		if (!isLineFreightVehicleType(vehicle.vehicleType)) return
@@ -503,11 +503,12 @@ const VehicleProperties = (
 							</div>
 						</PropertyGridRow>
 						<PropertyGridRow label={assignmentText().add}>
-							<HardListSearchPicker
+							<ComboSearchPicker
 								items={availableLineItems()}
 								onSelect={assignLine}
 								placeholder={assignmentText().filter}
 								emptyMessage={assignmentText().emptyAvailable}
+								triggerLabel={assignmentText().add}
 								testId="vehicle-line-picker"
 							/>
 						</PropertyGridRow>

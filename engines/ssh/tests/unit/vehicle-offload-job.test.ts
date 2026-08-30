@@ -5,6 +5,7 @@ import { migrateV1FiltersToGoodsSelection } from 'ssh/freight/goods-selection-po
 import { pickInitialVehicleServiceCandidate } from 'ssh/freight/vehicle-run'
 import {
 	allocateVehicleServiceForJob,
+	collectVehicleAdvertisedJobs,
 	findVehicleHopJob,
 	findVehicleOffloadJob,
 	isVehicleOffloadDestinationEligible,
@@ -169,7 +170,7 @@ describe('findVehicleOffloadJob', () => {
 		}
 	})
 
-	it('prefers load maintenance over unload when both are actionable', async () => {
+	it('empties a loaded vehicle parked on a burdening tile (offload beats load-more)', async () => {
 		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
 		await engine.init()
 		const { game } = engine
@@ -191,7 +192,7 @@ describe('findVehicleOffloadJob', () => {
 
 			const job = findVehicleOffloadJob(game, char)
 			expect(job?.job).toBe('vehicleOffload')
-			expect(job?.maintenanceKind).toBe('loadFromBurden')
+			expect(job?.maintenanceKind).toBe('unloadToTile')
 		} finally {
 			await engine.destroy()
 		}
@@ -465,6 +466,45 @@ describe('findVehicleOffloadJob', () => {
 			expect(job?.job).toBe('vehicleOffload')
 			expect(job?.maintenanceKind).toBe('unloadToTile')
 			expect(job?.targetCoord).toEqual({ q: 0, r: 1 })
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('empties a loaded vehicle (offload) even when a burdening load target is closer', async () => {
+		// A loaded free vehicle must propose `unloadToTile` (empty) at minimum. `loadFromBurden`
+		// (picking up MORE goods) is closer here, but must NOT displace the offload — otherwise the
+		// vehicle keeps loading and never empties.
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+		const { game } = engine
+		try {
+			engine.loadScenario({
+				generationOptions: { terrainSeed: 1234, characterCount: 0 },
+				tiles: [
+					{ coord: [0, 0], terrain: 'grass' },
+					{ coord: [0, 1], terrain: 'grass' },
+					{ coord: [0, 2], terrain: 'grass' },
+				],
+				hives: [
+					{
+						name: 'NearAlveolusHive',
+						alveoli: [{ coord: [0, 1], alveolus: 'storage', goods: {} }],
+					},
+				],
+				// A burdening load target one hex away (closer than the offload tile at (0,2)).
+				looseGoods: [{ goodType: 'stone', position: { q: 0, r: 1 } }],
+			} as any)
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [])
+			vehicle.storage.addGood('stone', 1)
+			const char = engine.spawnCharacter('Worker', { q: 0, r: 0 })
+			void char.scriptsContext
+
+			const job = findVehicleOffloadJob(game, char)
+			expect(job?.job).toBe('vehicleOffload')
+			expect(job?.maintenanceKind).toBe('unloadToTile')
+			// It must offload (empty) rather than pick up the adjacent burdening load target.
+			expect(job?.targetCoord).not.toEqual({ q: 0, r: 1 })
 		} finally {
 			await engine.destroy()
 		}
@@ -813,6 +853,86 @@ describe('findVehicleOffloadJob', () => {
 				throw new Error('expected maintenance service')
 			expect(vehicle.service.targetCoord).toEqual({ q: 1, r: 2 })
 			expect(vehicle.service.operator).toBe(char)
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('advertises the empty-vehicle job for a free loaded vehicle (vehicle-scoped)', async () => {
+		// A free loaded vehicle (no service, cargo aboard) must propose "empty me" in its OWN
+		// advertisedJobs list, so the UI shows a job even when no idle character is ranking it.
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+		const { game } = engine
+		try {
+			engine.loadScenario({
+				generationOptions: { terrainSeed: 1234, characterCount: 0 },
+				tiles: [
+					{ coord: [0, 0], terrain: 'grass' },
+					{ coord: [0, 1], terrain: 'grass' },
+					{ coord: [0, 2], terrain: 'grass' },
+					{ coord: [1, 0], terrain: 'grass' },
+				],
+			} as any)
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 }, [])
+			vehicle.storage.addGood('wood', 1)
+
+			const advertised = collectVehicleAdvertisedJobs(game, vehicle)
+			expect(advertised.length).toBeGreaterThan(0)
+			expect(advertised[0]!.job).toBe('vehicleOffload')
+			expect(advertised[0]!.maintenanceKind).toBe('unloadToTile')
+			expect(advertised[0]!.source.kind).toBe('vehicle')
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('advertises the empty-vehicle job for a loaded line-service vehicle (mid-transit)', async () => {
+		// A loaded vehicle ON a line service (mid-transit, not docked) whose cargo the line cannot
+		// sink must still advertise "empty me" in its vehicle-scoped advertisedJobs list. This was the
+		// exact soviet wedge: a gather vehicle mid-transit with an undeliverable good showed no job.
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+		const { game } = engine
+		try {
+			const lineDef = normalizeFreightLineDefinition({
+				name: 'Wood-only line',
+				cyclic: true,
+				stops: [
+					{
+						loadSelection: migrateV1FiltersToGoodsSelection(['wood']),
+						unloadSelection: migrateV1FiltersToGoodsSelection(['wood']),
+						anchor: { kind: 'alveolus', hiveName: 'Hive', alveolusType: 'freight_bay', coord: [0, 0] },
+					},
+					{
+						loadSelection: migrateV1FiltersToGoodsSelection(['wood']),
+						unloadSelection: migrateV1FiltersToGoodsSelection(['wood']),
+						zone: { kind: 'radius', center: [0, 0], radius: 2 },
+					},
+				],
+			})
+			engine.loadScenario({
+				generationOptions: { terrainSeed: 1234, characterCount: 0 },
+				tiles: [
+					{ coord: [0, 0], terrain: 'grass' },
+					{ coord: [0, 1], terrain: 'grass' },
+					{ coord: [0, 2], terrain: 'grass' },
+					{ coord: [1, 0], terrain: 'grass' },
+				],
+				freightLines: [lineDef],
+			} as any)
+			const line = [...game.freightLines].find((l) => l.name === 'Wood-only line')!
+			const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 1 }, [line])
+			// Undeliverable cargo: mushroom, not in the wood-only line's unload selection.
+			vehicle.storage.addGood('mushrooms', 1)
+			// Put it on an active line service, mid-transit (not docked).
+			vehicle.beginLineService(line, line.stops[1]!)
+
+			const advertised = collectVehicleAdvertisedJobs(game, vehicle)
+			expect(advertised.length).toBeGreaterThan(0)
+			expect(advertised[0]!.job).toBe('vehicleOffload')
+			expect(advertised[0]!.maintenanceKind).toBe('unloadToTile')
+			expect(advertised[0]!.source.kind).toBe('vehicle')
 		} finally {
 			await engine.destroy()
 		}

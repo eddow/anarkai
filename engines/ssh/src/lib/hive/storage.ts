@@ -401,6 +401,17 @@ export class StorageAlveolus extends Alveolus {
 					}
 					continue
 				}
+				// A buffered storage below its keep target is NOT a pure demander: its reserve must
+				// remain available to consumers. `canGive('2-use')` bypasses the buffer, so advertising
+				// `provide 2-use` here keeps the pile a provider — a 2-use demander (e.g. the sawmill)
+				// is served first, and the pile only flips to `demand 1-buffer` once it is actually empty.
+				if (bufferAmount > 0 && this.canGive(goodType, '2-use')) {
+					relations[goodType] = {
+						advertisement: 'provide',
+						priority: '2-use',
+					}
+					continue
+				}
 				// A buffered storage only demands back up to its keep target (so it
 				// never "fills toward max" and churns with general storages). An
 				// unbuffered ("no constraint") storage has no keep target, so it
