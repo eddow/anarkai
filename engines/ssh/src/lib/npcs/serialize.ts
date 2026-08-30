@@ -90,6 +90,31 @@ export function resolveFunctionPath(context: ExecutionContext, path: string): Fu
 }
 
 /**
+ * Thrown when a script execution state contains a transient host object that cannot be
+ * serialized by reference — e.g. an in-flight {@link LooseGood} (`remove`/`allocate`) or a
+ * convey {@link TrackedMovement} (`hop`/`finish`/`abort`).
+ *
+ * This is an *expected* outcome, not a bug: the character's script is marked non-resumable
+ * and re-plans through the normal selection path after load. Callers catch this distinctly
+ * from unexpected serialization failures so it can be logged at a lower severity.
+ */
+export class NonResumableScriptStateError extends Error {
+	constructor(message: string) {
+		super(message)
+		this.name = 'NonResumableScriptStateError'
+	}
+}
+
+/** True when `value` has own data properties that are functions (a transient host object). */
+function hasOwnFunctionProperty(value: object): boolean {
+	for (const key of Object.getOwnPropertyNames(value)) {
+		const descriptor = Object.getOwnPropertyDescriptor(value, key)
+		if (descriptor && typeof descriptor.value === 'function') return true
+	}
+	return false
+}
+
+/**
  * Serialization hook: substitute native functions and game objects with reference tokens.
  *
  * - Contract function → `{ __fnRef: path }` (via {@link buildFunctionIndex}).
@@ -163,6 +188,20 @@ export function makeSerializeHook(
 
 			if (raw instanceof GameObject) {
 				throw new Error(`Cannot serialize game object of type ${raw.constructor?.name}`)
+			}
+
+			// A plain host object carrying its own closures (an in-flight `LooseGood` with
+			// `remove`/`allocate`, a convey `TrackedMovement` with `hop`/`finish`, …) has no
+			// stable reference to resolve on load. Rather than failing deep inside the recursion
+			// with a confusing "non-contract function" message, surface a distinct, expected
+			// non-resumable error the caller can classify.
+			if (hasOwnFunctionProperty(raw)) {
+				const fnKeys = Object.getOwnPropertyNames(raw).filter(
+					(key) => typeof (raw as Record<string, unknown>)[key] === 'function'
+				)
+				throw new NonResumableScriptStateError(
+					`Transient host object with closures (${fnKeys.join(', ')}) is not resumable`
+				)
 			}
 		}
 		return undefined

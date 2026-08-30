@@ -59,7 +59,6 @@ describe('soviet example game', () => {
 		expect(game.hex.getTile({ q: -8, r: 2 })?.zone?.type).toBe('residential')
 		expect(game.hex.getTile({ q: -11, r: 2 })?.zone?.type).toBe('commercial')
 		expect(game.hex.zoneManager.findZoneByName('woodland')).toBeDefined()
-		expect(game.hex.zoneManager.findZoneByName('quarry')).toBeDefined()
 
 		const zoneTiles = [...game.hex.tiles].filter(
 			(tile) => tile.zone?.type === 'residential' || tile.zone?.type === 'commercial'

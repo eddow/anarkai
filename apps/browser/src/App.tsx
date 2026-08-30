@@ -188,6 +188,7 @@ const App = () => {
 	const openConfigurationPanel = () => ensurePanel('configuration', 'system.configuration')
 	const openLinesPanel = () => ensurePanel('linesManagement', 'freight-lines')
 	const openPlansPanel = () => ensurePanel('planManager', 'hive-plans')
+	const openSaveLoadPanel = () => ensurePanel('saveLoad', 'save-load')
 
 	const handleDockviewReady = (api: unknown) => {
 		state.api = api
@@ -211,6 +212,7 @@ const App = () => {
 		palettePanelBridge.openGame = openGamePanel
 		palettePanelBridge.openLines = openLinesPanel
 		palettePanelBridge.openPlans = openPlansPanel
+		palettePanelBridge.openSaveLoad = openSaveLoadPanel
 	})
 
 	effect`app:palette-dispose`(() => {

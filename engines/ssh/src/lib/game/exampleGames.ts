@@ -528,12 +528,11 @@ function axialRect(q0: number, q1: number, r0: number, r1: number): readonly [nu
 // Two 3×3 settlement zones nudged toward the hives — residential (east) beside
 // commercial (west). NOT foundationed: no concrete patch, so seed terrain (and any
 // deposits / loose goods it generates) is left untouched. The only terrain edits are
-// the resource areas (forest / rocky); the hives get their concrete footing from the
+// the resource areas (forest); the hives get their concrete footing from the
 // hive patch itself, not from `terrains`.
 const sovietResidential = axialRect(-9, -7, 1, 3)
 const sovietCommercial = axialRect(-12, -10, 1, 3)
 const sovietWoodland = axialRect(-11, -8, -6, -4)
-const sovietQuarry = axialRect(-20, -17, 7, 9)
 
 /**
  * A registered hive plan in `working` stage: the canonical design for a hive, with
@@ -658,8 +657,9 @@ const stonePlanEntries: readonly HivePlanEntry[] = [
  *
  * The residential and commercial zones are 3×3, empty (spontaneous construction only),
  * and **not** foundationed — the only terrain modification sits under the built hives
- * (the hive patch lays their concrete footing). The harvest zones are position-only
- * markers for now: their seed terrain stays untouched. Zone re-assignment comes later.
+ * (the hive patch lays their concrete footing). The harvest zone (Woodland) is a
+ * position-only marker for now: its seed terrain stays untouched. Zone re-assignment
+ * comes later.
  */
 export const soviet = {
 	seed: 549,
@@ -992,10 +992,9 @@ export const soviet = {
 	zones: [
 		{ type: 'residential', coords: sovietResidential },
 		{ type: 'commercial', coords: sovietCommercial },
-		// Position-only harvest markers: terrain/content is left to the seed until
-		// zones are re-affect later.
+		// Position-only harvest marker: terrain/content is left to the seed until
+		// the zone is re-affect later.
 		{ name: 'Woodland', color: '#3f9f6b', type: 'harvest', coords: sovietWoodland },
-		{ name: 'Quarry', color: '#8a8a8a', type: 'harvest', coords: sovietQuarry },
 	],
 	dwellings: [],
 	shops: [],

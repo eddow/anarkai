@@ -4,6 +4,7 @@ import GameWidget from './game'
 import LinesManagementWidget from './lines-management'
 import PaletteInspectorWidget from './palette-inspector-widget'
 import PlanManagerWidget from './plan-manager'
+import SaveLoadWidget from './save-load'
 import SelectionInfoWidget from './selection-info'
 
 export const widgets = {
@@ -14,6 +15,7 @@ export const widgets = {
 	paletteInspector: PaletteInspectorWidget,
 	'selection-info': SelectionInfoWidget,
 	commercialOverview: CommercialOverviewWidget,
+	saveLoad: SaveLoadWidget,
 }
 
 export default widgets

@@ -53,6 +53,16 @@
               "hint": "Open hive plans",
               "tone": "neutral"
             }
+          },
+          {
+            "tool": "openSaveLoad",
+            "editor": "button",
+            "config": {
+              "label": "Save / Load",
+              "icon": "pure-glyf-icon glyf-tabler-outline-device-floppy",
+              "hint": "Open save / load panel",
+              "tone": "neutral"
+            }
           }
         ]
       },
@@ -111,18 +121,6 @@
       {
         "space": 0.1,
         "toolbar": [
-          {
-            "tool": "selectedAction",
-            "editor": "segmented",
-            "config": {
-              "label": "Build",
-              "hint": "Build tools",
-              "acceptedKeywords": [
-                "build"
-              ],
-              "choiceDisplay": "icon"
-            }
-          },
           {
             "tool": "selectedAction",
             "editor": "segmented",

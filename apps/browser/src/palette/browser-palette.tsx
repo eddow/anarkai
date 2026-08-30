@@ -41,6 +41,7 @@ import { effect, reactive, unwrap } from 'mutts'
 import {
 	tablerFilledAdjustments,
 	tablerFilledArrowBigRight,
+	tablerOutlineDeviceFloppy,
 	tablerOutlineLayoutGridAdd,
 	tablerOutlinePolygon,
 	tablerOutlineRoute,
@@ -53,6 +54,7 @@ export const palettePanelBridge = reactive({
 	openLines: () => {},
 	openPlans: () => {},
 	openZones: () => {},
+	openSaveLoad: () => {},
 })
 
 const browserPaletteBuildableAlveoli = getAppShellBuildableAlveoli()
@@ -154,6 +156,17 @@ const tools = {
 		run() {
 			palettePanelBridge.openZones()
 			showZonesObject()
+		},
+	},
+	openSaveLoad: {
+		label: 'Open save / load',
+		icon: typeof tablerOutlineDeviceFloppy === 'string' ? tablerOutlineDeviceFloppy : undefined,
+		keywords: ['save', 'load', 'json', 'state', 'persist', 'restore'],
+		get can() {
+			return true
+		},
+		run() {
+			palettePanelBridge.openSaveLoad()
 		},
 	},
 	timeControl: {

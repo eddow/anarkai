@@ -17,7 +17,7 @@ import {
 	summarizeScriptRunValueKind,
 } from './npc-diagnostics'
 import { getGameScript, ScriptExecution, scriptExecutionErrorDiagnostic } from './scripts'
-import { makeReviveHook, makeSerializeHook } from './serialize'
+import { makeReviveHook, makeSerializeHook, NonResumableScriptStateError } from './serialize'
 import { AEvolutionStep, ASingleStep, PonderingStep, type TextKey } from './steps'
 
 function assertScriptExecution(value: unknown, context: string): asserts value is ScriptExecution {
@@ -304,12 +304,20 @@ export function withScripted<T extends abstract new (...args: any[]) => GameObje
 				}))
 				return { runningScripts, stepExecutor: this.stepExecutor?.serialize(), resumable: true }
 			} catch (error) {
-				// A native closure / unresolvable object cannot be referenced: mark this state
-				// non-resumable so the character re-plans through the normal selection path.
-				traces.script.error?.('script.serialize.failed', {
-					character: (this as unknown as { name?: string }).name,
-					error,
-				})
+				// A transient host object (loose good / in-flight movement) is expected to be
+				// non-resumable — the character re-plans through the normal selection path. Log it
+				// at warn level; genuine serialization bugs stay at error level.
+				if (error instanceof NonResumableScriptStateError) {
+					traces.script.warn?.('script.serialize.non-resumable', {
+						character: (this as unknown as { name?: string }).name,
+						reason: error.message,
+					})
+				} else {
+					traces.script.error?.('script.serialize.failed', {
+						character: (this as unknown as { name?: string }).name,
+						error,
+					})
+				}
 				return { runningScripts: [], stepExecutor: undefined, resumable: false }
 			}
 		}
