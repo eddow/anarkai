@@ -5,7 +5,6 @@ import type { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import type { LooseGood } from 'ssh/board/looseGoods'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 import type { FreightAdSource, FreightPriorityTier } from 'ssh/freight/priority-channel'
-import type { HivePlan } from 'ssh/hive-plan'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { type AxialCoord, type Positioned, positionScope } from 'ssh/utils'
 
@@ -40,7 +39,6 @@ export const baseGameScope = scope({
 		'convey',
 		'vehicleOffload',
 		'construct',
-		'validateHivePlan',
 		'forester',
 		'foundation',
 		'defragment',
@@ -83,7 +81,7 @@ export const baseGameScope = scope({
 
 	GenericWorkPlan: {
 		type: "'work'",
-		job: "'harvest' | 'transform' | 'convey' | 'construct' | 'validateHivePlan' | 'forester' | 'foundation' | 'defragment' | 'vehicleHop' | 'zoneBrowse'",
+		job: "'harvest' | 'transform' | 'convey' | 'construct' | 'forester' | 'foundation' | 'defragment' | 'vehicleHop' | 'zoneBrowse'",
 		target: 'object', // TileContent validated at runtime
 		urgency: 'number',
 		fatigue: 'number',
@@ -302,15 +300,6 @@ export interface ConstructJob {
 	path?: Positioned[] // Path to construction site
 }
 
-export interface ValidateHivePlanJob {
-	job: 'validateHivePlan'
-	urgency: number
-	fatigue: number
-	/** The plan to validate (object reference, not register index). */
-	plan: HivePlan
-	path?: Positioned[]
-}
-
 export interface ForesterJob {
 	job: 'forester'
 	urgency: number
@@ -455,7 +444,6 @@ export type Job =
 	| TransformJob
 	| ConveyJob
 	| ConstructJob
-	| ValidateHivePlanJob
 	| ForesterJob
 	| VehicleOffloadJob
 	| FoundationJob

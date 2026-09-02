@@ -76,9 +76,15 @@ import {
 	type HivePlan,
 	HivePlanCollection,
 	type HivePlanPlacementPreview,
+	type HivePlanStructuralIssue,
 	previewHivePlanPlacement,
-	type SerializedHivePlan,
 } from 'ssh/hive-plan'
+import {
+	type Project,
+	ProjectCollection,
+	type SerializedProject,
+	validateProjectStructure,
+} from 'ssh/project'
 import {
 	deserializeCharacters,
 	type SerializedCharacter,
@@ -215,6 +221,8 @@ export interface AlveolusPatch {
 	constructionWorkSecondsApplied?: number
 	constructionPhase?: ConstructionPhase
 	hivePlanIndex?: number
+	/** Owning project (placement provenance) index into `projects`. */
+	projectIndex?: number
 	/** Configuration reference and individual config for this alveolus */
 	configuration?: {
 		ref: Ssh.ConfigurationReference
@@ -250,6 +258,8 @@ export interface SitePatch {
 	constructionGoods?: Partial<Record<GoodType, number>>
 	constructionWorkSecondsApplied?: number
 	hivePlanIndex?: number
+	/** Owning project (placement provenance) index into `projects`. */
+	projectIndex?: number
 	/** Plan-entry configuration for the build shell (replaces the former `planRoleId` lookup). */
 	configuration?: {
 		ref: Ssh.ConfigurationReference
@@ -334,7 +344,7 @@ export interface GamePatches {
 	freightLines?: ReadonlyArray<FreightLineDefinition>
 	looseGoods?: LooseGoodsPatches
 	zones?: ZonesPatches
-	projects?: Record<string, ReadonlyArray<readonly [number, number]>>
+	siteMap?: Record<string, ReadonlyArray<readonly [number, number]>>
 	sites?: ReadonlyArray<SitePatch>
 	dwellings?: ReadonlyArray<DwellingPatch>
 	shops?: ReadonlyArray<ShopPatch>
@@ -345,8 +355,10 @@ export interface GamePatches {
 	roads?: RoadPatchInput
 	/** Global named configurations (by alveolus type, then name) — referenced via `configuration.ref = { scope: 'named', name }`. */
 	namedConfigurations?: Partial<Record<AlveolusType, Record<string, Ssh.AlveolusConfiguration>>>
-	/** Registered hive plans (designs), resolved before hives so `hivePlanIndex` links. */
-	hivePlans?: ReadonlyArray<SerializedHivePlan>
+	/** Registered hive plans (templates, relative coords), resolved before hives so `hivePlanIndex` links. */
+	hivePlans?: ReadonlyArray<HivePlan>
+	/** Registered projects (placed alveoli + roads), resolved before hives so `hivePlanIndex` links. */
+	projects?: ReadonlyArray<SerializedProject>
 }
 
 export interface SaveState extends GamePatches {
@@ -560,6 +572,7 @@ export class Game extends Eventful<GameEvents> {
 	public readonly vehicles: Vehicles
 	public readonly configurationManager = new AlveolusConfigurationManager()
 	public readonly hivePlans = new HivePlanCollection(this)
+	public readonly projects = new ProjectCollection(this)
 	public readonly procurementDefaults = commerce.procurement
 	public readonly playerAccount = reactive<PlayerAccountPatch>({
 		balanceVp: commerce.startingAccountBalanceVp,
@@ -805,7 +818,7 @@ export class Game extends Eventful<GameEvents> {
 		anchor: AxialCoord,
 		rotation: number
 	): HivePlanPlacementPreview | undefined {
-		if (!plan || plan.stage !== 'working') return undefined
+		if (!plan) return undefined
 		return previewHivePlanPlacement(this, plan, anchor, rotation)
 	}
 
@@ -816,7 +829,7 @@ export class Game extends Eventful<GameEvents> {
 	 * @returns `true` when the placement was applied.
 	 */
 	public applyHivePlanPlacement(plan: HivePlan, anchor: AxialCoord, rotation: number): boolean {
-		if (!plan || plan.stage !== 'working') return false
+		if (!plan) return false
 		const preview = previewHivePlanPlacement(this, plan, anchor, rotation)
 		if (!preview.valid) return false
 		for (const cell of preview.cells) {
@@ -836,6 +849,71 @@ export class Game extends Eventful<GameEvents> {
 		}
 		this.invalidateWorkPlanning('hive-plan.place')
 		return true
+	}
+
+	/**
+	 * Commit a draft project: validate its placed entries against the board, then
+	 * materialize each entry as a construction shell (linked to the project) and
+	 * each road instantly, and freeze the project to `working` (now executing).
+	 * @returns ok, or the issues that refused the commit (nothing is written on failure).
+	 */
+	public commitProject(
+		project: Project
+	): { ok: true } | { ok: false; issues: HivePlanStructuralIssue[] } {
+		if (!project || project.stage !== 'draft') {
+			return {
+				ok: false,
+				issues: [{ code: 'empty', message: 'Only draft projects can be committed.' }],
+			}
+		}
+		const issues = validateProjectStructure(this, project.entries)
+		if (issues.length > 0) return { ok: false, issues }
+
+		// Board occupancy check — fail fast before any write.
+		for (const entry of project.entries) {
+			const tile = this.hex.getTile({ q: entry.coord[0], r: entry.coord[1] })
+			if (!tile) {
+				return {
+					ok: false,
+					issues: [{ code: 'invalid-alveolus', message: `No tile at ${entry.coord}.` }],
+				}
+			}
+			if (!tile.canInteract(`build:${entry.alveolusType}`) || !tile.isClear) {
+				return {
+					ok: false,
+					issues: [{ code: 'invalid-alveolus', message: `Tile ${entry.coord} is blocked.` }],
+				}
+			}
+		}
+
+		// Materialize entries as construction shells linked to the project.
+		for (const entry of project.entries) {
+			const tile = this.hex.getTile({ q: entry.coord[0], r: entry.coord[1] })!
+			applyConstructionConcreteTerrain(tile)
+			const site = createConstructionSiteState({
+				kind: 'alveolus',
+				alveolusType: entry.alveolusType,
+				variant: entry.variant,
+			})
+			site.phase = 'waiting_materials'
+			const shell = createConstructionShell(tile, site)
+			Object.assign(shell, {
+				project,
+				planConfiguration: entry.configuration ? { ...entry.configuration } : undefined,
+			})
+			this.hex.setTileContent(tile, shell)
+			tile.asGenerated = false
+		}
+
+		// Apply roads instantly (road construction is deferred — no progress).
+		for (const road of project.roads) {
+			this.hex.setRoadType({ q: road.coord[0], r: road.coord[1] }, road.type)
+		}
+
+		const result = this.projects.commit(project)
+		if (!result.ok) return result
+		this.invalidateWorkPlanning('project.commit')
+		return { ok: true }
 	}
 
 	/**
@@ -1509,7 +1587,7 @@ export class Game extends Eventful<GameEvents> {
 		for (const zone of zonePatchEntries(patches.zones)) {
 			for (const coord of zone.coords) coords.push({ q: coord[0], r: coord[1] })
 		}
-		for (const coordsForProject of Object.values(patches.projects ?? {})) {
+		for (const coordsForProject of Object.values(patches.siteMap ?? {})) {
 			for (const coord of coordsForProject) coords.push({ q: coord[0], r: coord[1] })
 		}
 		for (const site of patches.sites ?? []) {
@@ -1561,7 +1639,7 @@ export class Game extends Eventful<GameEvents> {
 		for (const zone of zonePatchEntries(patches.zones)) {
 			for (const coord of zone.coords) addPatchCoord(coord)
 		}
-		for (const coordsForProject of Object.values(patches.projects ?? {})) {
+		for (const coordsForProject of Object.values(patches.siteMap ?? {})) {
 			for (const coord of coordsForProject) addPatchCoord(coord)
 		}
 		for (const site of patches.sites ?? []) addPatchCoord(site.coord)
@@ -2299,8 +2377,9 @@ export class Game extends Eventful<GameEvents> {
 			if (patches.namedConfigurations) {
 				this.configurationManager.deserialize(patches.namedConfigurations)
 			}
-			// Registered hive plans are resolved before hives so `hivePlanIndex` links.
+			// Registered hive plans (templates) and projects are resolved before hives so `hivePlanIndex` links.
 			this.hivePlans.deserialize(patches.hivePlans)
+			this.projects.deserialize(patches.projects)
 			// Apply patches if any (zones before hives so named-zone references resolve)
 			if (terrainTiles.length) this.applyTilePatches(terrainTiles)
 			if (patches.tiles?.length) this.applyTilePatches(patches.tiles)
@@ -2308,7 +2387,7 @@ export class Game extends Eventful<GameEvents> {
 			if (patches.hives?.length)
 				this.applyHivesPatches(patches.hives, saveState?.hiveConfigurations)
 			if (patches.looseGoods) this.applyLooseGoodsPatches(patches.looseGoods)
-			if (patches.projects) this.applyProjectPatches(patches.projects)
+			if (patches.siteMap) this.applySiteMapPatches(patches.siteMap)
 			if (patches.sites?.length) this.applySitePatches(patches.sites)
 			if (patches.dwellings?.length) this.applyDwellingPatches(patches.dwellings)
 			if (patches.shops?.length) this.applyShopPatches(patches.shops)
@@ -2390,15 +2469,16 @@ export class Game extends Eventful<GameEvents> {
 			if (patches.namedConfigurations) {
 				this.configurationManager.deserialize(patches.namedConfigurations)
 			}
-			// Registered hive plans are resolved before hives so `hivePlanIndex` links.
+			// Registered hive plans (templates) and projects are resolved before hives so `hivePlanIndex` links.
 			this.hivePlans.deserialize(patches.hivePlans)
+			this.projects.deserialize(patches.projects)
 			if (terrainTiles.length) this.applyTilePatches(terrainTiles)
 			if (patches.tiles?.length) this.applyTilePatches(patches.tiles)
 			if (patches.zones) this.applyZonePatches(patches.zones)
 			if (patches.hives?.length)
 				this.applyHivesPatches(patches.hives, saveState?.hiveConfigurations)
 			if (patches.looseGoods) this.applyLooseGoodsPatches(patches.looseGoods)
-			if (patches.projects) this.applyProjectPatches(patches.projects)
+			if (patches.siteMap) this.applySiteMapPatches(patches.siteMap)
 			if (patches.sites?.length) this.applySitePatches(patches.sites)
 			if (patches.dwellings?.length) this.applyDwellingPatches(patches.dwellings)
 			if (patches.shops?.length) this.applyShopPatches(patches.shops)
@@ -2660,6 +2740,8 @@ export class Game extends Eventful<GameEvents> {
 					Object.assign(build, {
 						hivePlan:
 							a.hivePlanIndex !== undefined ? this.hivePlans.byIndex(a.hivePlanIndex) : undefined,
+						project:
+							a.projectIndex !== undefined ? this.projects.byIndex(a.projectIndex) : undefined,
 						planConfiguration: a.configuration,
 					})
 					this.hex.setTileContent(tile, build)
@@ -2776,15 +2858,15 @@ export class Game extends Eventful<GameEvents> {
 		}
 	}
 
-	private applyProjectPatches(projects: NonNullable<GamePatches['projects']>) {
-		for (const [projectType, coords] of Object.entries(projects)) {
+	private applySiteMapPatches(siteMap: NonNullable<GamePatches['siteMap']>) {
+		for (const [siteType, coords] of Object.entries(siteMap)) {
 			for (const coord of coords) {
 				const coordObj = { q: coord[0], r: coord[1] }
 				const tile = this.hex.getTile(coordObj)
 				if (!tile) continue
 				const content = tile.content
 				if (content instanceof UnBuiltLand) {
-					content.setSite(projectType)
+					content.setSite(siteType)
 					tile.asGenerated = false
 				}
 			}
@@ -2822,8 +2904,13 @@ export class Game extends Eventful<GameEvents> {
 					entry.hivePlanIndex !== undefined
 						? this.hivePlans.byIndex(entry.hivePlanIndex)
 						: undefined
+				const project =
+					entry.projectIndex !== undefined
+						? this.projects.byIndex(entry.projectIndex)
+						: undefined
 				Object.assign(build, {
 					hivePlan,
+					project,
 					planConfiguration: entry.configuration,
 				})
 				this.hex.setTileContent(tile, build)
@@ -3090,6 +3177,9 @@ export class Game extends Eventful<GameEvents> {
 					hivePlanIndex: (content as { hivePlan?: HivePlan }).hivePlan
 						? this.hivePlans.indexOf((content as { hivePlan?: HivePlan }).hivePlan!)
 						: undefined,
+					projectIndex: (content as { project?: Project }).project
+						? this.projects.indexOf((content as { project?: Project }).project!)
+						: undefined,
 					configuration: (content as { planConfiguration?: SitePatch['configuration'] })
 						.planConfiguration,
 				})
@@ -3111,6 +3201,9 @@ export class Game extends Eventful<GameEvents> {
 								goods: constructionShell.storage?.stock || {},
 								hivePlanIndex: (constructionShell as { hivePlan?: HivePlan }).hivePlan
 									? this.hivePlans.indexOf((constructionShell as { hivePlan?: HivePlan }).hivePlan!)
+									: undefined,
+								projectIndex: (constructionShell as { project?: Project }).project
+									? this.projects.indexOf((constructionShell as { project?: Project }).project!)
 									: undefined,
 							}
 						: {
@@ -3231,6 +3324,7 @@ export class Game extends Eventful<GameEvents> {
 				namedConfigurations: this.configurationManager.serialize(),
 				hiveConfigurations,
 				hivePlans: this.hivePlans.serialize(),
+				projects: this.projects.serialize(),
 				randomState: this.random.getState(),
 				clockVirtualTime: this.clock.virtualTime,
 			}
@@ -3260,6 +3354,7 @@ export class Game extends Eventful<GameEvents> {
 			this.configurationManager.deserialize(state.namedConfigurations)
 		}
 		this.hivePlans.deserialize(state.hivePlans)
+		this.projects.deserialize(state.projects)
 
 		// 2. Re-generate the base world (terrain)
 		// We assume state.generationOptions has the original seed

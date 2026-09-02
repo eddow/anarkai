@@ -188,6 +188,7 @@ const App = () => {
 	const openConfigurationPanel = () => ensurePanel('configuration', 'system.configuration')
 	const openLinesPanel = () => ensurePanel('linesManagement', 'freight-lines')
 	const openPlansPanel = () => ensurePanel('planManager', 'hive-plans')
+	const openProjectsPanel = () => ensurePanel('projectManager', 'projects')
 	const openSaveLoadPanel = () => ensurePanel('saveLoad', 'save-load')
 
 	const handleDockviewReady = (api: unknown) => {
@@ -212,6 +213,7 @@ const App = () => {
 		palettePanelBridge.openGame = openGamePanel
 		palettePanelBridge.openLines = openLinesPanel
 		palettePanelBridge.openPlans = openPlansPanel
+		palettePanelBridge.openProjects = openProjectsPanel
 		palettePanelBridge.openSaveLoad = openSaveLoadPanel
 	})
 

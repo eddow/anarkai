@@ -10,7 +10,7 @@ import {
 	foundationGoodsComplete,
 	setConstructionFoundationDeliveredGoods,
 } from 'ssh/construction-state'
-import type { ConstructJob, FoundationJob, Job, ValidateHivePlanJob } from 'ssh/types/base'
+import type { ConstructJob, FoundationJob, Job } from 'ssh/types/base'
 import { type AxialCoord, axial } from 'ssh/utils'
 import { axialDistance, type Positioned, toAxialCoord } from 'ssh/utils/position'
 import { maxWalkTime } from '../../../assets/constants'
@@ -372,7 +372,7 @@ registerActionJobProvider('engineer', (alveolus) => {
 	 * Root engineer (no spec) enables all jobs for backward compatibility.
 	 * Variant specs filter the set:
 	 *   building → construct + foundation
-	 *   research → validateHivePlan
+	 *   research → (none yet — research/validation deferred, see plans/projects.md)
 	 *   road     → (none yet, future)
 	 */
 	const allowedJobs = (() => {
@@ -388,7 +388,7 @@ registerActionJobProvider('engineer', (alveolus) => {
 				jobs.add('foundation')
 				break
 			case 'research':
-				jobs.add('validateHivePlan')
+				// Research/validation jobs are deferred (study/science); no jobs yet.
 				break
 			case 'road':
 				// Road jobs are not yet implemented; future
@@ -399,16 +399,16 @@ registerActionJobProvider('engineer', (alveolus) => {
 
 	const collectTargets = () => {
 		if (allowedJobs.size === 0)
-			return [] as { tile: any; job: ConstructJob | FoundationJob | ValidateHivePlanJob }[]
+			return [] as { tile: any; job: ConstructJob | FoundationJob }[]
 
 		const hex = alveolus.tile.game.hex
 		const origin = toAxialCoord(alveolus.tile.position)
 		if (!origin)
-			return [] as { tile: any; job: ConstructJob | FoundationJob | ValidateHivePlanJob }[]
+			return [] as { tile: any; job: ConstructJob | FoundationJob }[]
 
 		type EngTarget = {
 			tile: any
-			job: ConstructJob | FoundationJob | ValidateHivePlanJob
+			job: ConstructJob | FoundationJob
 		}
 		const targets: EngTarget[] = []
 
@@ -455,23 +455,7 @@ registerActionJobProvider('engineer', (alveolus) => {
 				})
 			}
 		}
-		if (allowedJobs.has('validateHivePlan'))
-			for (const plan of alveolus.tile.game.hivePlans.validatingPlans) {
-				if (
-					plan.validationProgress.workSecondsApplied >= plan.validationProgress.workSecondsRequired
-				) {
-					continue
-				}
-				targets.push({
-					tile: alveolus.tile,
-					job: {
-						job: 'validateHivePlan' as const,
-						plan,
-						urgency: jobBalance.engineer.construct * 0.8,
-						fatigue: alveolus.getFatigueCost(),
-					},
-				})
-			}
+
 		return targets.sort((a, b) => {
 			const priority = (job: any) =>
 				job.job === 'construct' ? 0 : job.job === 'foundation' ? 1 : 2

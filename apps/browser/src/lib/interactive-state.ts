@@ -1,6 +1,7 @@
 import { reactive, unwrap } from 'mutts'
 import type { InteractiveGameObject } from 'ssh/game/object'
 import type { HivePlan } from 'ssh/hive-plan'
+import type { Project } from 'ssh/project'
 import type { AxialCoord } from 'ssh/utils'
 
 export const mrg = reactive({
@@ -15,6 +16,31 @@ export const hivePlanPlacementState = reactive({
 	rotation: 0,
 	lastMessage: '',
 	plan: undefined as HivePlan | undefined,
+})
+
+/**
+ * Active project being edited on the board, plus the currently selected
+ * authoring tool (`'build:<alveolusType>'`, `'road:<roadType>'`, `'hive'`
+ * with a `hivePlan`, or `'bulldoze'`). Board clicks route here (Phase 5) to
+ * add/remove project entries and roads, or stamp a hive-plan template.
+ */
+export const projectEditingState = reactive({
+	project: undefined as Project | undefined,
+	tool: '' as string,
+	/** Set when `tool === 'hive'`: the template to stamp onto the board. */
+	hivePlan: undefined as HivePlan | undefined,
+	rotation: 0,
+	mirror: false,
+})
+
+/**
+ * Board preview ghost: the currently previewed project (one radio per project in
+ * the project-manager sidebar). When `active`, the project's placed buildings
+ * and roads are drawn as a board overlay.
+ */
+export const projectPreviewState = reactive({
+	project: undefined as Project | undefined,
+	active: false,
 })
 
 export interface ActiveWorldViewPov {

@@ -20,10 +20,9 @@ describe('soviet example game', () => {
 		await game.loaded
 		game.ticker.stop()
 
-		// ── Two registered designs, both `working`. ─────────────────────────
+		// ── Two registered templates (designs). ────────────────────────────
 		expect(game.hivePlans.plans.map((plan) => plan.name).sort()).toEqual(['Stone', 'Wood'])
 		for (const plan of game.hivePlans.plans) {
-			expect(plan.stage).toBe('working')
 			expect(plan.entries.length).toBeGreaterThan(0)
 		}
 

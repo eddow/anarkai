@@ -129,6 +129,10 @@ Engineers shouldn't have a specified plot - indeed, specifying a plot to an alve
 
 Many agents have *disabled* errors by "return false" of pure and simple "try again later" policy - all these case of dust put under the rug have to be hunted down and errors revealed
 
+## Zones
+
+"Zones" are still used in a widget in the UI, while there should remain only districts and plots - these zones seem to exist, some have 0 tiles, some 9, ... but the concept should not even exist (and perhaps plots can be the concept of the widget - but no plots is named "residential" and have 0 tiles)
+
 ## New tile types
 
 - Factory path: allow passing through for vehicles, but act as alveoli and can be occupied for conveying (blocking temporarily) - will be mostly avoided by setting it to a high price in path finding

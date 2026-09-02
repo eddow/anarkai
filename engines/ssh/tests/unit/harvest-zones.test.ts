@@ -68,7 +68,7 @@ describe('Harvest Zones Restriction', () => {
 				},
 			],
 			zones: [{ type: 'harvest', coords: [[1, 0] as [number, number]] }],
-			projects: {
+			siteMap: {
 				'build:storage': [[0, 1] as [number, number]],
 			},
 		} as any)

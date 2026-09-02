@@ -299,7 +299,7 @@ describe('road build validation', () => {
 					{ coord: [2, 0], terrain: 'grass' },
 				],
 				zones: [{ type: 'residential', coords: [[0, 0]] }],
-				projects: { 'build:sawmill': [[2, 0]] },
+				siteMap: { 'build:sawmill': [[2, 0]] },
 			}
 		)
 		await game.loaded

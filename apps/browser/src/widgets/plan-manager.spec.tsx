@@ -15,11 +15,6 @@ const globals = vi.hoisted(() => ({
 		hivePlans: undefined as unknown as HivePlanCollection,
 		invalidateWorkPlanning: vi.fn(),
 	},
-	hivePlanPlacementState: {
-		rotation: 0,
-		lastMessage: '',
-		plan: undefined,
-	},
 	interactionMode: {
 		selectedAction: '',
 	},
@@ -83,32 +78,21 @@ describe('PlanManagerWidget', () => {
 		document.body.innerHTML = ''
 	})
 
-	it('creates and selects an empty draft from the New button', () => {
+	it('creates and selects an empty template from the New button', () => {
 		stop = latch(container, <PlanManagerWidget />)
 
 		click([...container.querySelectorAll('button')].find((button) => button.textContent === 'New'))
 
-		expect(globals.game.hivePlans.draftPlans).toHaveLength(1)
+		expect(globals.game.hivePlans.plans).toHaveLength(1)
 		expect(container.textContent).toContain('New hive plan')
 		expect(container.textContent).toContain('Add at least one alveolus.')
 	})
 
-	it('toggles stage filters back to All when the active non-All filter is clicked', () => {
-		const draft = globals.game.hivePlans.createDraft('Draft plan', [])
-		const working = globals.game.hivePlans.createDraft('Working plan', [])
-		working.stage = 'working'
-		void draft
+	it('lists all templates without stage filters', () => {
+		globals.game.hivePlans.create('Draft plan', [])
+		globals.game.hivePlans.create('Working plan', [])
 		stop = latch(container, <PlanManagerWidget />)
 
-		click(
-			[...container.querySelectorAll('button')].find((button) => button.textContent === 'Working')
-		)
-		expect(container.textContent).toContain('Working plan')
-		expect(container.textContent).not.toContain('Draft plan')
-
-		click(
-			[...container.querySelectorAll('button')].find((button) => button.textContent === 'Working')
-		)
 		expect(container.textContent).toContain('Working plan')
 		expect(container.textContent).toContain('Draft plan')
 	})
@@ -120,7 +104,7 @@ describe('PlanManagerWidget', () => {
 
 		click(container.querySelector('[data-testid="plan-canvas"]'))
 
-		const plan = globals.game.hivePlans.draftPlans[0]
+		const plan = globals.game.hivePlans.plans[0]
 		expect(plan.entries).toHaveLength(1)
 		expect(plan.entries[0].alveolusType).toBe('storage')
 		expect(globals.interactionMode.selectedAction).toBe('build:storage')

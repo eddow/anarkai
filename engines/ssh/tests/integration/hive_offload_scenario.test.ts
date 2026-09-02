@@ -399,7 +399,7 @@ describe('Hive Offload Scenario', () => {
 						],
 					},
 				],
-				projects: {
+				siteMap: {
 					'build:storage': [[2, 0] as [number, number]],
 				},
 				looseGoods: [

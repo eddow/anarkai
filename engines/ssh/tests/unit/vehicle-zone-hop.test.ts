@@ -479,7 +479,7 @@ describe('Vehicle zone hop semantics', () => {
 					],
 				},
 			],
-			projects: {
+			siteMap: {
 				'build:storage': [[2, 0] as [number, number]],
 			},
 			looseGoods: {

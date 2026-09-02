@@ -6,6 +6,8 @@ import {
 	hivePlanPlacementState,
 	interactionMode,
 	mrg,
+	projectEditingState,
+	projectPreviewState,
 	selectionState,
 	validateSelectionPanelId,
 } from '@app/lib/globals'
@@ -13,10 +15,12 @@ import { consumePresentationEvents } from '@app/lib/presentation-events'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
 import { PixiGameRenderer } from 'engine-pixi/renderer'
 import { effect } from 'mutts'
-import type { RoadType } from 'ssh/board/roads'
+import { roadBordersForTrace, type RoadType } from 'ssh/board/roads'
 import { Tile } from 'ssh/board/tile'
 import { traces } from 'ssh/dev/debug'
 import type { GamePresentationEvent, InteractiveGameObject } from 'ssh/game'
+import { applyHivePlanToolAction, hivePlanCoordKey } from 'ssh/hive-plan'
+import { stampHivePlanEntries } from 'ssh/project'
 import type { AlveolusType } from 'ssh/types/base'
 import { toAxialCoord } from 'ssh/utils/position'
 
@@ -105,12 +109,80 @@ export default function GameWidget(
 		return success
 	}
 
+	/**
+	 * Apply a project-editing tool to a clicked tile: stamp a hive-plan template,
+	 * add/replace/remove an alveolus entry (absolute coords), on the active draft.
+	 */
+	const handleProjectEditClick = (object: InteractiveGameObject): boolean => {
+		const project = projectEditingState.project
+		const tool = projectEditingState.tool
+		if (!project || project.stage !== 'draft' || !(object instanceof Tile)) return false
+		const coord = toAxialCoord(object.position)
+		if (!coord) return false
+
+		if (tool === 'hive') {
+			const plan = projectEditingState.hivePlan
+			if (!plan) return false
+			const stamped = stampHivePlanEntries(
+				plan,
+				coord,
+				projectEditingState.rotation,
+				projectEditingState.mirror
+			)
+			// Merge by absolute coord: a stamped alveolus replaces any existing entry there.
+			const byCoord = new Map(project.entries.map((entry) => [hivePlanCoordKey(entry.coord), entry]))
+			for (const entry of stamped) byCoord.set(hivePlanCoordKey(entry.coord), entry)
+			game.projects.updateDraft(project, { entries: [...byCoord.values()] })
+			return true
+		}
+
+		if (!tool.startsWith('build:') && tool !== 'bulldoze') return false
+		const next = applyHivePlanToolAction(project.entries, tool, coord)
+		if (!next.changed) return true
+		game.projects.updateDraft(project, { entries: next.entries })
+		return true
+	}
+
+	/**
+	 * Apply a project-editing road tool to a dragged tile trace: add the spanned
+	 * border coords as road segments (absolute) on the active draft project.
+	 */
+	const handleProjectRoadDrag = (tiles: Tile[], roadType: RoadType): boolean => {
+		const project = projectEditingState.project
+		const tool = projectEditingState.tool
+		if (!project || project.stage !== 'draft' || tool !== `road:${roadType}`) return false
+
+		const borders = roadBordersForTrace(tiles)
+		if (borders.length === 0) return false
+		const additions = borders
+			.map((border) => toAxialCoord(border.position))
+			.filter((coord): coord is { q: number; r: number } => !!coord)
+			.map((coord) => ({ coord: [coord.q, coord.r] as const, type: roadType }))
+
+		// Dedup against existing road patches (same coord + type).
+		const existing = new Set(project.roads.map((road) => `${road.coord[0]},${road.coord[1]}:${road.type}`))
+		const merged = [...project.roads]
+		for (const road of additions) {
+			if (existing.has(`${road.coord[0]},${road.coord[1]}:${road.type}`)) continue
+			merged.push(road)
+		}
+		if (merged.length === project.roads.length) return true
+		game.projects.updateDraft(project, { roads: merged })
+		return true
+	}
+
 	const gameEvents = {
 		objectClick(event: MouseEvent, object: InteractiveGameObject) {
 			if (event.button !== 0) return
 			const selectedBeforeFreightPick = selectionState.selectedObject
 			if (tryConsumeFreightMapPick(game, object, event)) {
 				selectionState.selectedObject = selectedBeforeFreightPick
+				return
+			}
+			// Project editing (draft authoring) takes precedence over the palette action.
+			if (projectEditingState.project) {
+				const applied = handleProjectEditClick(object)
+				if (applied && !event.shiftKey) projectEditingState.tool = ''
 				return
 			}
 			const action = interactionMode.selectedAction
@@ -146,6 +218,8 @@ export default function GameWidget(
 			if (!shift) interactionMode.selectedAction = ''
 		},
 		roadDrag(tiles: Tile[], roadType: RoadType, event: unknown) {
+			// Project editing (draft authoring) takes precedence.
+			if (projectEditingState.project && handleProjectRoadDrag(tiles, roadType)) return
 			if (!interactionMode.selectedAction.startsWith('road:')) return
 			const applied = handleRoadDrag(tiles, roadType)
 			if (!applied) return
@@ -175,6 +249,24 @@ export default function GameWidget(
 			event.preventDefault()
 			const delta = event.key === 'q' || event.key === 'Q' ? -1 : 1
 			hivePlanPlacementState.rotation = (hivePlanPlacementState.rotation + delta + 6) % 6
+		}
+		window.addEventListener('keydown', onKeyDown)
+		return () => window.removeEventListener('keydown', onKeyDown)
+	})
+
+	// Rotate/mirror the hive template being stamped into a project.
+	effect`game:project-hive-keys`(() => {
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (projectEditingState.tool !== 'hive') return
+			if (event.key === 'm' || event.key === 'M') {
+				event.preventDefault()
+				projectEditingState.mirror = !projectEditingState.mirror
+				return
+			}
+			if (event.key !== 'r' && event.key !== 'R' && event.key !== 'q' && event.key !== 'Q') return
+			event.preventDefault()
+			const delta = event.key === 'q' || event.key === 'Q' ? -1 : 1
+			projectEditingState.rotation = (projectEditingState.rotation + delta + 6) % 6
 		}
 		window.addEventListener('keydown', onKeyDown)
 		return () => window.removeEventListener('keydown', onKeyDown)
@@ -214,11 +306,29 @@ export default function GameWidget(
 		return () => game.emit('dragPreviewClear')
 	})
 
+	// Project preview overlay: highlight the active project's planned buildings.
+	effect`game:project-preview`(() => {
+		const project = projectPreviewState.project
+		if (!projectPreviewState.active || !project) {
+			game.emit('dragPreviewClear')
+			return
+		}
+		const tiles = project.entries
+			.map((entry) => game.hex.getTile({ q: entry.coord[0], r: entry.coord[1] }))
+			.filter((tile): tile is Tile => !!tile)
+		game.emit('dragPreview', tiles, '')
+		return () => game.emit('dragPreviewClear')
+	})
+
 	// Reactive cursor: distinct cursor per active tool.
 	effect`game:cursor`(() => {
 		const action = interactionMode.selectedAction
+		const editingProject = projectEditingState.project
 		const canvas = container?.querySelector('canvas') as HTMLCanvasElement | null
-		if (action.startsWith('build:')) {
+		if (editingProject && projectEditingState.tool) {
+			container?.setAttribute('data-build-action', '')
+			if (canvas) canvas.style.cursor = 'crosshair'
+		} else if (action.startsWith('build:')) {
 			container?.setAttribute('data-build-action', '')
 			if (canvas) canvas.style.cursor = 'crosshair'
 		} else if (action.startsWith('zone:')) {

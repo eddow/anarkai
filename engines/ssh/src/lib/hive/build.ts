@@ -15,6 +15,7 @@ import {
 } from 'ssh/construction-state'
 import { debugObjectId } from 'ssh/dev/debug-object-id'
 import type { HivePlan } from 'ssh/hive-plan'
+import type { Project } from 'ssh/project'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { AlveolusType, GoodType } from 'ssh/types/base'
 import { toAxialCoord } from 'ssh/utils/position'
@@ -46,6 +47,8 @@ export class BuildAlveolus extends TileContent {
 	public destroyed = false
 	public assignedWorker: unknown
 	public hivePlan?: HivePlan
+	/** Owning committed project (placement provenance); set when materialized by `commitProject`. */
+	public project?: Project
 	public planConfiguration?: {
 		ref: Ssh.ConfigurationReference
 		individual?: Ssh.AlveolusConfiguration

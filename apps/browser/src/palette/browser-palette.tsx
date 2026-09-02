@@ -41,6 +41,7 @@ import { effect, reactive, unwrap } from 'mutts'
 import {
 	tablerFilledAdjustments,
 	tablerFilledArrowBigRight,
+	tablerOutlineCrane,
 	tablerOutlineDeviceFloppy,
 	tablerOutlineLayoutGridAdd,
 	tablerOutlinePolygon,
@@ -53,6 +54,7 @@ export const palettePanelBridge = reactive({
 	openGame: () => {},
 	openLines: () => {},
 	openPlans: () => {},
+	openProjects: () => {},
 	openZones: () => {},
 	openSaveLoad: () => {},
 })
@@ -144,6 +146,17 @@ const tools = {
 		},
 		run() {
 			palettePanelBridge.openPlans()
+		},
+	},
+	openProjects: {
+		label: 'Open projects',
+		icon: typeof tablerOutlineCrane === 'string' ? tablerOutlineCrane : undefined,
+		keywords: ['project', 'projects', 'construction', 'build'],
+		get can() {
+			return true
+		},
+		run() {
+			palettePanelBridge.openProjects()
 		},
 	},
 	openZones: {

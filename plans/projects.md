@@ -49,26 +49,35 @@ Rename surfaces (mechanical, cross-cutting): `UnBuiltLand.project` → `site`, `
 ## Data model (target)
 
 ```ts
-type ProjectStage = 'draft' | 'working' | 'archived'      // `validating` dropped for now
+type ProjectStage = 'draft' | 'working' | 'archived'   // `validating` (research/study) deferred — TODO
 
 interface Project {
 	name: string
 	stage: ProjectStage
-	hivePlans: HivePlan[]                 // each = one "hive" (a contiguous list of alveoli)
-	roads: RoadPatch[]                    // roads live directly on the project (no plan wrapper)
+	entries: ProjectEntry[]               // ABSOLUTE board coords (placed alveoli)
+	roads: RoadPatch[]                    // ABSOLUTE board coords (roads live on the project)
 	sourcing: SourcingEntry[]             // per-good buy / take-from-local-storage
-	validationProgress: HivePlanValidationProgress   // aggregate bill over hivePlans
-	knownnessFingerprint: string          // dedup across projects
+	validationProgress: HivePlanValidationProgress   // bill over the placed entries
+	knownnessFingerprint: string          // position-independent dedup across projects
 	archiveReason?: 'manual' | 'obsolete'
 }
 
-interface HivePlan {                      // demoted to a cluster template
+// A project entry is structurally identical to a template entry; the difference is that
+// ProjectEntry.coord is ABSOLUTE while HivePlanEntry.coord is RELATIVE (template coords).
+type ProjectEntry = HivePlanEntry
+
+interface HivePlan {                      // abstract template (the "Plans" widget)
 	name: string
-	entries: HivePlanEntry[]               // "the list of alveoli to build"
-	knownnessFingerprint: string           // per-cluster, for novelty/dedup
-	// stage / validationProgress / archiveReason move up to Project
+	entries: HivePlanEntry[]               // RELATIVE coords ("wood chopper beside the bay")
+	knownnessFingerprint: string           // rotation-invariant, for dedup / novelty memory
 }
 ```
+
+`HivePlan` (template) and `Project` (placement) are **separate registries** on `Game`:
+`game.hivePlans` (templates, static — no lifecycle) and `game.projects` (placements, owns the stage
+machine). A project is authored by **stamping** templates onto the board
+(`stampHivePlanEntries(hivePlan, anchor, rotation, mirror)` → absolute entries); the project stores the
+alveoli, not the template.
 
 `RoadPatch` stays `{ coord: [q, r], type: 'path' | 'asphalt' }` (`board/roads.ts`). For display, roads
 are **grouped**: "1 road" = one connected component of the *same* road type (a display grouping, not a
@@ -84,62 +93,81 @@ the UI/behavior on top.
 - [x] Rename tile-level `project` → `site`: `UnBuiltLand.project`/`setProject`, `constructionTargetFromProject`,
       `residentialBasicDwellingProject`, `ProjectSitePatch` (save/load), `work.project.*` traces, the
       pink/purple `colorCode` override, and the `!project`/`land.project` guards + `canInteract` zone gate.
-- [ ] Introduce the `Project` type + `ProjectCollection` as the **top-level** register on `Game`
-      (replacing `HivePlanCollection` as the primary list; keep `HivePlanCollection` or fold it in).
+- [x] Introduce the `Project` type + `ProjectCollection` as the **top-level** register on `Game`
+      (replacing `HivePlanCollection` as the primary list; `HivePlanCollection` folded into `ProjectCollection`).
 
 ### Phase 1 — `Project` data model (engine)
 
-- [ ] `Project` shape: `name`, `stage`, `hivePlans: HivePlan[]`, `roads: RoadPatch[]`,
+- [x] `Project` shape: `name`, `stage`, `hivePlans: HivePlan[]`, `roads: RoadPatch[]`,
       `sourcing: SourcingEntry[]`, `validationProgress` (aggregate), `knownnessFingerprint`,
       `archiveReason?`.
-- [ ] Demote `HivePlan` to a cluster template: keep `name` + `entries` + `knownnessFingerprint`; move
+- [x] Demote `HivePlan` to a cluster template: keep `name` + `entries` + `knownnessFingerprint`; move
       `stage` / `validationProgress` / `archiveReason` up to `Project`.
 - [ ] Roads on the project: a flat `roads: RoadPatch[]` (no plan wrapper). Provide
       `groupRoadsByConnectedType(roads)` (same-type connected components) for display.
-- [ ] Aggregate bill: `Project.validationProgress.requiredGoods` = Σ over `hivePlans`
-      (`hivePlanRequiredGoods`) + road cost (0 for now — roads build instantly).
-- [ ] `ProjectCollection` CRUD: `createDraft`, `updateDraft`, `commit`, `archive`, `unarchive`,
-      `findDuplicate`, `serialize`/`deserialize` (nested `hivePlans` + `roads` + `sourcing`), keeping
-      `indexOf`/`byIndex` as the save/load provenance seam.
-- [ ] Migrate all `game.hivePlans` call sites → `game.projects`: `hive/engineer.ts`, `jobs/action-job-registry.ts`,
-      `npcs/work.ts` (validate-job flow), `game/exampleGames.ts`, `game/game.ts`, serialization +
-      `save-indexes.ts`, `apps/browser` (widgets, globals, tests).
-- [ ] Update `hive-plan.test.ts` + add `project.test.ts` (aggregate bill, commit freeze, dedup).
+- [x] Aggregate bill: `Project.validationProgress.requiredGoods` = Σ over `hivePlans`
+      (`hivePlanValidationRequirements`) + road cost (0 for now — roads build instantly).
+- [x] `ProjectCollection` CRUD: `createDraft`, `updateDraft`, `sendToValidation`, `archive`, `unarchive`,
+      `applyResearchWork`, `findDuplicate`, `serialize`/`deserialize` (nested `hivePlans` + `roads` +
+      `sourcing`), keeping `indexOf`/`byIndex` (project) + `planIndexOf`/`planByIndex` (flattened plan)
+      as the save/load provenance seam. (`commit` lands in Phase 2.)
+- [x] Migrate all `game.hivePlans` call sites → `game.projects`: `hive/engineer.ts`, `jobs/action-job-registry.ts`,
+      `npcs/context/work.ts` (validate-job flow), `game/exampleGames.ts`, `game/game.ts`, serialization +
+      `save-indexes.ts`, `apps/browser` (plan-manager widget + tests). Also renamed the legacy
+      `GamePatches.projects` map form → `siteMap` (and `applyProjectPatches` → `applySiteMapPatches`).
+- [x] Update `hive-plan.test.ts` (collection → `ProjectCollection`, placement provenance, bill) +
+      `soviet-example.test.ts` + `plan-manager.spec.tsx`. (A dedicated `project.test.ts` is still TODO.)
 
 ### Phase 2 — Lifecycle: commit + placement (engine)
 
-- [ ] Simplify stages to `draft → working → archived` (drop `validating` for now). `sendToValidation` is
-      retired or becomes a no-op alias; `commit(project)` = validate structure → freeze → materialize.
-- [ ] `commit(project)` materializes: place every `hivePlan` (construction shells via
-      `createConstructionSiteForHivePlanEntry`) + apply every road instantly (`applyRoadTrace` /
-      `setRoadType`).
-- [ ] Add **mirror** (hex reflection) alongside `rotation` to `previewHivePlanPlacement` +
-      `hivePlanPlacementState` (currently rotation-only). "Placing a hive" = placing its bunch of
-      alveoli at anchor + rotation + mirror.
-- [ ] Placement conflict check extends to **alveoli / district / road** occupancy (extend
-      `previewHivePlanPlacement` cells beyond `isClear`/`canInteract`).
-- [ ] Link placed shells back to the owning project for the committed treeview: extend the shell
-      provenance (`shell.hivePlan` already exists) with `shell.project` (or resolve hivePlan → owning
-      project). Decided: **object reference**, matching the existing `hivePlan` identity seam.
+- [x] **Validation deferred (TODO).** The `engineer.research` "study engineer" variant exists in content, but
+      projects do **not** trigger research yet — no `validating` stage, no `sendToValidation`/
+      `applyResearchWork`/`validatingProjects`, no `validateProject` job (`ValidateProjectJob`, `JobType`/
+      `GenericWorkPlan.job`, `action-job-registry.ts` `research` case, `work.ts`, `work.npcs`). The
+      `research` engineer case is a no-op for now; "researching at home" (and any "buy research" option)
+      is a later slice — recorded in §Deferred.
+- [x] `ProjectCollection.commit(project)` = structural check → freeze `draft → working` (no research gate).
+- [x] `Game.commitProject(project)` materializes a **`draft`** project: validate structure + board occupancy,
+      place every **entry** as a construction shell (linked to the project) + apply every road instantly
+      (`hex.setRoadType`), then freeze to `working`. Note: `Project.entries` are already **absolute**
+      (not a template), so commit needs no anchor/rotation/mirror.
+- [x] **Mirror** (hex reflection) lives in `stampHivePlanEntries(hivePlan, anchor, rotation, mirror)` — the
+      authoring-time template→project stamp (rotate + mirror + offset → absolute entries). `previewHivePlanPlacement`
+      (the old direct "place a single hive on the board" flow) remains rotation-only; that flow is superseded.
+- [x] Placement conflict check: `commitProject` reuses the `canInteract(build:)` + `isClear` semantics of
+      `previewHivePlanPlacement` (blocks existing alveoli / cleared-burden tiles). Road-border vs tile
+      occupancy conflict is a later refinement.
+- [x] Link placed shells back to the owning project: `BuildAlveolus.project?: Project` (object reference),
+      serialized as `SitePatch.projectIndex` / `AlveolusPatch.projectIndex` (symmetric to `hivePlanIndex`).
 
 ### Phase 3 — Project detail UI (tree view + build tools)
 
-- [ ] Rework `plan-manager.tsx` into a **project manager**: sidebar lists `Project`s (stage filters
-      `draft/working/archived`); the detail is a **tree view**.
-- [ ] Tree structure (expandable): `Project` → hive plans → alveoli; plus roads grouped by
-      same-type-connected component (`roads → tiles`); each node expandable/collapsible.
-- [ ] Build tools live **in the tree**, not the palette: **hive buttons** (alveolus types + variants,
-      reuse `getAppShellBuildableAlveoli` / `getAppShellBuildToolbarRoots` from `app-shell-controls`) and
-      **road buttons** (`road:path`, `road:asphalt`).
+- [x] New **`project-manager.tsx`** widget (registered as `projectManager`, opened via
+      `openProjectsPanel` + the palette "Open projects" tool). Sidebar lists `Project`s (stage filters
+      all/draft/validating/working/archived) + New; detail shows name (draft-editable), a **tree view**
+      (alveoli flat + roads grouped by same-type-connected via `groupRoadsByConnectedType`), the **bill
+      (goods)**, **build tools**, and **actions** (Validate / Commit / Archive / Unarchive).
+- [x] `groupRoadsByConnectedType(roads)` pure helper (same-type connected components; "1 road = same type
+      + connected") + unit tests. This is the **lighter** grouping — the "project hive" level is deferred.
+- [x] `projectEditingState { project, tool }` added to `interactive-state.ts` (re-exported via globals);
+      build-tool buttons set it (`build:<type>` / `road:<type>` / `bulldoze`). Hive buttons list
+      `alveolusTypes`; road buttons list `ROAD_TYPES`.
+- [x] Build tools divided by **kind** into collapsible categories: **Hives** (list of `game.hivePlans.plans`,
+      stamps a template via `projectEditingState.tool='hive'` + `hivePlan`, with rotate/mirror controls),
+      **Alveoli** (`build:<type>`), **Roads** (`road:<type>` + bulldoze). Expand/collapse state is local.
+- [x] Hive stamping wired into board-click placement: `game.tsx handleProjectEditClick` stamps
+      `stampHivePlanEntries(plan, anchor, rotation, mirror)` and merges by absolute coord (a stamped
+      alveolus replaces an existing entry there). `R`/`Q` rotate, `M` mirror (`game:project-hive-keys`).
+- [ ] Variant picker on build buttons (reuse `getAppShellBuildableAlveoli` / `getAppShellBuildToolbarRoots`).
 - [ ] Editing routes build/road actions into the project editor (add/remove alveoli, add/remove road
-      segments) via the project tree, not `interactionMode.selectedAction`.
+      segments) — the **board-click placement** is wired in Phase 5 (the buttons set the tool now).
 - [ ] Remove build + road actions from the palette `selectedAction` values (already visually hidden) —
       confirm the palette no longer lists them.
 
 ### Phase 4 — Bill + per-good buy/take (sourcing) in the editor
 
-- [ ] Show the **bill (in goods)** at authoring time in the project detail (from
-      `Project.validationProgress.requiredGoods`).
+- [x] Show the **bill (in goods)** at authoring time in the project detail (from
+      `Project.validationProgress.requiredGoods`) — first increment renders `delivered / required` per good.
 - [ ] Per-good **buy vs take-from-local-storage** toggle → seed `Project.sourcing` (a
       `SourcingEntry[]` / `SourcingPolicy` override), binding the existing `trySpawnConstructionDeliveries`
       (buy) vs `trySpawnConstructionLines` (self-haul) spawners.
@@ -147,11 +175,14 @@ the UI/behavior on top.
 
 ### Phase 5 — Board preview (radio button per project)
 
-- [ ] One **preview radio** per project; checked by default when a project widget is opened.
-- [ ] When checked, draw the project's planned buildings (+ roads) as a **board overlay** ghost,
-      anchored near the current POV center (or reuse the placement ghost anchor once placement is
-      active). Mirror/rotation controls affect both preview and placement.
-- [ ] Only one preview active at a time (radio group); unchecking hides the overlay.
+- [x] One **preview radio** per project; checked by default when a project widget is opened
+      (`projectPreviewState { project, active }`; the widget's select/effect previews the selected project).
+- [x] When checked, draw the project's planned **buildings** as a board overlay ghost (reuses the
+      existing `dragPreview` overlay; `game:project-preview` effect). Road-overlay ghost is a follow-up.
+- [x] Only one preview active at a time (radio group); unchecking hides the overlay.
+- [x] **Board-click placement**: `projectEditingState` tools route into `objectClick` (build/bulldoze via
+      `applyHivePlanToolAction` → `projects.updateDraft({ entries })`) and `roadDrag` (border coords via
+      `roadBordersForTrace` → `projects.updateDraft({ roads })`), taking precedence over the palette action.
 
 ### Phase 6 — Committed project (read-only progress)
 
@@ -176,9 +207,18 @@ the UI/behavior on top.
 
 ## Deferred / still open
 
+- [ ] **"Project hive" grouping** — a project-level grouping of placed alveoli into named hives, used for
+      hive **deletion/configuration** and **progress-bar grouping**. Adding/removing alveoli requires hive
+      reconstruction (hives must stay internally connected). The board-runtime `Hive` clustering (which
+      already groups connected alveoli live) is a *separate* concept. This project-level grouping is the
+      tree-view "hives" level and is deferred — Phase 3 ships the **lighter** tree: project → alveoli
+      (flat) + roads (grouped by same-type-connected).
+- [ ] **Research / validation ("study engineer")** — the `engineer.research` variant exists, but projects
+      don't trigger research yet and there's no "buy research" option. "Researching at home" (a research
+      engineer consuming the bill's goods + work-seconds to promote `draft → working`) is a later slice:
+      decide whether it gates commit, whether it's a per-good sink, and its UX.
 - [ ] Authoring a project on top of an ongoing project (the explicit "TODO").
-- [ ] Road construction progress (roads build instantly for now).
-- [ ] `validating` survey / novelty work-seconds ("study/science").
+- [ ] Road construction progress (roads build instantly for now — a committed tree shows roads as a static list).
 - [ ] Merge semantics (how two projects' bills combine/conflict).
 - [ ] Operating demand in the bill (storage buffers / transform inputs).
 - [ ] Reusable / scattered clones (stamp the same hive N times; shared vs forked config).

@@ -169,6 +169,8 @@ vi.mock('pure-glyf/icons', () => ({
 	tablerFilledSquareRoundedMinus: 'pure-glyf-icon glyf-tabler-filled-square-rounded-minus',
 	tablerFilledZoomMoney: 'pure-glyf-icon glyf-tabler-filled-zoom-money',
 	tablerOutlineDeviceFloppy: 'pure-glyf-icon glyf-tabler-outline-device-floppy',
+	tablerOutlineCrane: 'pure-glyf-icon glyf-tabler-outline-crane',
+	tablerOutlineLayoutGridAdd: 'pure-glyf-icon glyf-tabler-outline-layout-grid-add',
 	tablerOutlinePolygon: 'pure-glyf-icon glyf-tabler-outline-polygon',
 	tablerOutlineRoad: 'pure-glyf-icon glyf-tabler-outline-road',
 	tablerOutlineRoute: 'pure-glyf-icon glyf-tabler-outline-route',

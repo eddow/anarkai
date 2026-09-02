@@ -1,11 +1,11 @@
 import HivePlanCanvas from '@app/components/HivePlanCanvas'
 import { variantDisplayLabel } from '@app/components/properties/VariantPicker'
 import { css } from '@app/lib/css'
-import { game, hivePlanPlacementState, interactionMode } from '@app/lib/globals'
+import { game, interactionMode } from '@app/lib/globals'
 import { Button, InspectorSection } from '@app/ui/anarkai'
 import { alveoli as alveoliRules } from 'engine-rules'
 import { effect, reactive } from 'mutts'
-import type { HivePlan, HivePlanEntry, HivePlanStage } from 'ssh/hive-plan'
+import type { HivePlan, HivePlanEntry } from 'ssh/hive-plan'
 import {
 	applyHivePlanToolAction,
 	hivePlanCoordKey,
@@ -132,22 +132,6 @@ css`
 }
 `
 
-type StageFilter = 'all' | HivePlanStage
-
-const stageLabels: Record<HivePlanStage, string> = {
-	working: 'Working',
-	draft: 'Draft',
-	validating: 'Validating',
-	archived: 'Archived',
-}
-const planFilters: { value: StageFilter; label: string }[] = [
-	{ value: 'all', label: 'All' },
-	{ value: 'working', label: 'Working' },
-	{ value: 'draft', label: 'Draft' },
-	{ value: 'validating', label: 'Validating' },
-	{ value: 'archived', label: 'Archived' },
-]
-
 const alveolusTypes = Object.keys(alveoliRules) as AlveolusType[]
 
 function configurationOptions(alveolusType: AlveolusType): string[] {
@@ -201,16 +185,11 @@ function planEntryVariantOptions(alveolusType: string): PlanVariantOption[] {
 const PlanManagerWidget = (props: { title?: string }) => {
 	props.title = 'Plans'
 	const state = reactive({
-		filter: 'all' as StageFilter,
 		selectedPlan: undefined as HivePlan | undefined,
 		selectedCoord: undefined as readonly [number, number] | undefined,
 		message: '',
 	})
 
-	const plansForFilter = () =>
-		state.filter === 'all'
-			? game.hivePlans.plans
-			: game.hivePlans.plans.filter((plan) => plan.stage === state.filter)
 	const selectedPlan = () => state.selectedPlan
 	const selectedEntry = () => {
 		const plan = selectedPlan()
@@ -226,15 +205,10 @@ const PlanManagerWidget = (props: { title?: string }) => {
 		const plan = selectedPlan()
 		return plan ? validateHivePlanStructure(game, plan.entries) : []
 	}
-	const canValidate = () => {
-		const plan = selectedPlan()
-		return !!plan && plan.stage === 'draft' && structuralIssues().length === 0
-	}
 
 	effect`plan-manager:selected`(() => {
 		const selected = selectedPlan()
-		const list = plansForFilter()
-		if (!selected && list[0]) state.selectedPlan = list[0]
+		if (!selected && game.hivePlans.plans[0]) state.selectedPlan = game.hivePlans.plans[0]
 		if (selected && state.selectedCoord) {
 			const stillExists = selected.entries.some(
 				(entry) => hivePlanCoordKey(entry.coord) === hivePlanCoordKey(state.selectedCoord!)
@@ -243,37 +217,31 @@ const PlanManagerWidget = (props: { title?: string }) => {
 		}
 	})
 
-	const setFilter = (filter: StageFilter) => {
-		state.filter = filter !== 'all' && state.filter === filter ? 'all' : filter
-		const list = plansForFilter()
-		const selected = selectedPlan()
-		if (!selected || !list.some((plan) => plan === selected)) {
-			state.selectedPlan = list[0]
-			state.selectedCoord = undefined
-		}
-	}
-
 	const createNewPlan = () => {
-		const plan = game.hivePlans.createDraft(uniquePlanName('New hive plan'), [])
-		state.filter = 'all'
+		const plan = game.hivePlans.create(uniquePlanName('New hive plan'), [])
 		state.selectedPlan = plan
 		state.selectedCoord = undefined
-		state.message = 'New draft created.'
+		state.message = 'New template created.'
 	}
 
-	const applyDraftPatch = (
+	const deleteSelected = () => {
+		const plan = selectedPlan()
+		if (!plan) return
+		game.hivePlans.remove(plan)
+		if (state.selectedPlan === plan) state.selectedPlan = undefined
+		state.selectedCoord = undefined
+		state.message = `${plan.name} deleted.`
+	}
+
+	const applyPatch = (
 		plan: HivePlan,
 		patch: { name?: string; entries?: readonly HivePlanEntry[] }
 	): HivePlan | undefined => {
-		if (plan.stage !== 'draft') {
-			state.message = 'Only draft plans can be edited.'
-			return
-		}
-		const result = game.hivePlans.updateDraft(plan, patch)
+		const result = game.hivePlans.update(plan, patch)
 		if (result !== plan) {
 			state.selectedPlan = result
 			state.selectedCoord = undefined
-			state.message = `Existing matching plan: ${result.name}`
+			state.message = `Existing matching template: ${result.name}`
 			return result
 		}
 		state.message = ''
@@ -287,7 +255,7 @@ const PlanManagerWidget = (props: { title?: string }) => {
 		const entries = plan.entries.map((entry) =>
 			hivePlanCoordKey(entry.coord) === key ? { ...cloneEntry(entry), ...patch } : cloneEntry(entry)
 		)
-		applyDraftPatch(plan, { entries })
+		applyPatch(plan, { entries })
 	}
 
 	const setEntryNamedConfiguration = (coord: readonly [number, number], name: string) => {
@@ -301,7 +269,7 @@ const PlanManagerWidget = (props: { title?: string }) => {
 	const handleCanvasHex = (coord: AxialCoord) => {
 		const plan = selectedPlan()
 		if (!plan) {
-			state.message = 'Create or select a draft first.'
+			state.message = 'Create or select a template first.'
 			return
 		}
 		const action = interactionMode.selectedAction
@@ -310,75 +278,18 @@ const PlanManagerWidget = (props: { title?: string }) => {
 			state.selectedCoord = entry ? ([entry.coord[0], entry.coord[1]] as const) : undefined
 			return
 		}
-		if (plan.stage !== 'draft') {
-			state.message = 'Only draft plans can be edited.'
-			return
-		}
 		const next = applyHivePlanToolAction(plan.entries, action, coord)
 		state.selectedCoord = next.selectedCoord ?? undefined
 		if (!next.changed) return
-		applyDraftPatch(plan, { entries: next.entries })
-	}
-
-	const validateSelected = () => {
-		const plan = selectedPlan()
-		if (!plan || !canValidate()) return
-		const result = game.hivePlans.sendToValidation(plan)
-		if (!result.ok) {
-			state.message = 'Plan is not ready for validation.'
-			return
-		}
-		state.filter = 'validating'
-		state.message = `${result.plan.name} sent to engineer validation.`
-	}
-
-	const archiveSelected = () => {
-		const plan = selectedPlan()
-		if (!plan) return
-		game.hivePlans.archive(plan)
-		state.message = `${plan.name} archived.`
-	}
-
-	const unarchiveSelected = () => {
-		const plan = selectedPlan()
-		if (!plan) return
-		game.hivePlans.unarchive(plan)
-		state.message = `${plan.name} restored as draft.`
-	}
-
-	const placeSelected = () => {
-		const plan = selectedPlan()
-		if (!plan || plan.stage !== 'working') return
-		interactionMode.selectedAction = 'hive-plan'
-		hivePlanPlacementState.plan = plan
-		hivePlanPlacementState.rotation = 0
-		hivePlanPlacementState.lastMessage = 'Click the board to place the plan.'
-	}
-
-	const rotatePlacement = (delta: number) => {
-		hivePlanPlacementState.rotation = (hivePlanPlacementState.rotation + delta + 6) % 6
+		applyPatch(plan, { entries: next.entries })
 	}
 
 	return (
 		<div class="plan-manager">
 			<div class="plan-manager__sidebar">
 				<Button onClick={createNewPlan}>New</Button>
-				<div class="plan-manager__filters">
-					<for each={planFilters}>
-						{(filter) => (
-							<button
-								type="button"
-								class="plan-manager__filter"
-								data-selected={state.filter === filter.value ? 'true' : 'false'}
-								onClick={() => setFilter(filter.value)}
-							>
-								{filter.label}
-							</button>
-						)}
-					</for>
-				</div>
 				<div class="plan-manager__list">
-					<for each={plansForFilter()}>
+					<for each={game.hivePlans.plans}>
 						{(plan) => (
 							<button
 								type="button"
@@ -390,32 +301,29 @@ const PlanManagerWidget = (props: { title?: string }) => {
 								}}
 							>
 								<div>{plan.name}</div>
-								<div class="plan-manager__stage">
-									{plan.entries.length} alveoli · {stageLabels[plan.stage as HivePlanStage]}
-								</div>
+								<div class="plan-manager__stage">{plan.entries.length} alveoli</div>
 							</button>
 						)}
 					</for>
-					<div if={plansForFilter().length === 0} class="plan-manager__muted">
-						No plans in this filter.
+					<div if={game.hivePlans.plans.length === 0} class="plan-manager__muted">
+						No templates yet.
 					</div>
 				</div>
 			</div>
 			<div class="plan-manager__detail">
-				<InspectorSection title="Designer">
+				<InspectorSection title="Template">
 					<div if={!selectedPlan()} class="plan-manager__muted">
-						Create or select a plan.
+						Create or select a template.
 					</div>
 					<div if={!!selectedPlan()}>
 						<div class="plan-manager__field">
 							<label>Name</label>
 							<input
 								value={selectedPlan()?.name ?? ''}
-								disabled={selectedPlan()?.stage !== 'draft'}
 								update:value={(v: string) => {
 									const plan = selectedPlan()
 									if (!plan) return
-									applyDraftPatch(plan, {
+									applyPatch(plan, {
 										name: v,
 									})
 								}}
@@ -427,16 +335,19 @@ const PlanManagerWidget = (props: { title?: string }) => {
 								issues={structuralIssues()}
 								selectedCoord={state.selectedCoord}
 								selectedAction={interactionMode.selectedAction}
-								readOnly={selectedPlan()?.stage !== 'draft'}
+								readOnly={false}
 								onHexClick={handleCanvasHex}
 							/>
 						</div>
 						<div class="plan-manager__muted">
-							Tool: {interactionMode.selectedAction || 'Select'} · {selectedPlan()?.stage}
+							Tool: {interactionMode.selectedAction || 'Select'}
 						</div>
 						<for each={structuralIssues()}>
 							{(issue) => <div class="plan-manager__issue">{issue.message}</div>}
 						</for>
+						<div class="plan-manager__actions">
+							<Button onClick={deleteSelected}>Delete</Button>
+						</div>
 					</div>
 				</InspectorSection>
 
@@ -448,7 +359,6 @@ const PlanManagerWidget = (props: { title?: string }) => {
 						<label>Alveolus</label>
 						<select
 							value={selectedEntry()?.alveolusType ?? ''}
-							disabled={selectedPlan()?.stage !== 'draft'}
 							update:value={(v: string) => {
 								const entry = selectedEntry()
 								if (!entry) return
@@ -466,7 +376,6 @@ const PlanManagerWidget = (props: { title?: string }) => {
 						</label>
 						<select
 							if={planEntryVariantOptions(selectedEntry()?.alveolusType ?? '').length > 0}
-							disabled={selectedPlan()?.stage !== 'draft'}
 							update:value={(v: string) => {
 								const entry = selectedEntry()
 								if (!entry) return
@@ -494,7 +403,6 @@ const PlanManagerWidget = (props: { title?: string }) => {
 									? selectedEntry()?.configuration?.ref.name
 									: ''
 							}
-							disabled={selectedPlan()?.stage !== 'draft'}
 							update:value={(v: string) => {
 								const entry = selectedEntry()
 								if (!entry) return
@@ -513,44 +421,9 @@ const PlanManagerWidget = (props: { title?: string }) => {
 					</div>
 				</InspectorSection>
 
-				<InspectorSection title="Plan actions">
-					<div if={!!selectedPlan()}>
-						<div class="plan-manager__muted">
-							{selectedPlan()?.entries.length} alveoli · {selectedPlan()?.stage}
-						</div>
-						<div if={selectedPlan()?.stage === 'validating'} class="plan-manager__muted">
-							Research {Math.floor(selectedPlan()?.validationProgress.workSecondsApplied ?? 0)} /{' '}
-							{selectedPlan()?.validationProgress.workSecondsRequired ?? 0}s
-						</div>
-						<div class="plan-manager__actions">
-							<Button
-								if={selectedPlan()?.stage === 'draft'}
-								disabled={!canValidate()}
-								onClick={validateSelected}
-							>
-								Validate
-							</Button>
-							<Button if={selectedPlan()?.stage === 'working'} onClick={placeSelected}>
-								Place
-							</Button>
-							<Button if={selectedPlan()?.stage !== 'archived'} onClick={archiveSelected}>
-								Archive
-							</Button>
-							<Button if={selectedPlan()?.stage === 'archived'} onClick={unarchiveSelected}>
-								Unarchive
-							</Button>
-							<Button onClick={() => rotatePlacement(-1)}>Rotate left</Button>
-							<Button onClick={() => rotatePlacement(1)}>Rotate right</Button>
-						</div>
-						<div class="plan-manager__muted">
-							Placement rotation: {hivePlanPlacementState.rotation * 60}deg
-						</div>
-						<div class="plan-manager__muted">{hivePlanPlacementState.lastMessage}</div>
-					</div>
-					<div if={state.message} class="plan-manager__muted">
-						{state.message}
-					</div>
-				</InspectorSection>
+				<div if={state.message} class="plan-manager__muted">
+					{state.message}
+				</div>
 			</div>
 		</div>
 	)

@@ -11,9 +11,6 @@ import type { Game } from 'ssh/game'
 import type { AlveolusType, GoodType } from 'ssh/types/base'
 import { type AxialCoord, axial } from 'ssh/utils/axial'
 
-export type HivePlanStage = 'draft' | 'validating' | 'working' | 'archived'
-export type HivePlanArchiveReason = 'manual' | 'obsolete'
-
 export interface HivePlanEntry {
 	coord: readonly [number, number]
 	alveolusType: AlveolusType
@@ -34,14 +31,9 @@ export interface HivePlanValidationProgress {
 
 export interface HivePlan {
 	name: string
-	stage: HivePlanStage
 	entries: HivePlanEntry[]
-	validationProgress: HivePlanValidationProgress
 	knownnessFingerprint: string
-	archiveReason?: HivePlanArchiveReason
 }
-
-export interface SerializedHivePlan extends HivePlan {}
 
 export interface HivePlanStructuralIssue {
 	code: 'empty' | 'disconnected' | 'invalid-alveolus' | 'missing-configuration'
@@ -348,39 +340,23 @@ export function validateHivePlanStructure(
 	return issues
 }
 
+/**
+ * The hive-plan (template) registry: abstract, relative-coordinate designs that
+ * projects stamp onto the board. Templates are **static** (no lifecycle stage) —
+ * the "known plans" novelty memory reads this registry directly.
+ */
 @reactive
 export class HivePlanCollection {
 	public plans: HivePlan[] = []
 
 	constructor(private readonly game: Game) {}
 
-	get workingPlans(): HivePlan[] {
-		return this.plans.filter((plan) => plan.stage === 'working')
-	}
-
-	get archivedPlans(): HivePlan[] {
-		return this.plans.filter((plan) => plan.stage === 'archived')
-	}
-
-	get validatingPlans(): HivePlan[] {
-		return this.plans.filter((plan) => plan.stage === 'validating')
-	}
-
-	get draftPlans(): HivePlan[] {
-		return this.plans.filter((plan) => plan.stage === 'draft')
-	}
-
 	/** Register index of a plan; -1 when the plan is not in this collection. */
 	indexOf(plan: HivePlan): number {
 		return this.plans.indexOf(plan)
 	}
 
-	/**
-	 * Resolve a plan by its position in the register. The array is the single
-	 * source of truth for cross-boundary references (UI interaction tokens,
-	 * save/load shell provenance); it is append-only, so indexes are stable
-	 * within a session and across save/load (serialized in order).
-	 */
+	/** Resolve a plan by its register position (append-only, serialized in order). */
 	byIndex(index: number): HivePlan | undefined {
 		return this.plans[index]
 	}
@@ -393,102 +369,52 @@ export class HivePlanCollection {
 		)
 	}
 
-	createDraft(name: string, entries: readonly HivePlanEntry[]): HivePlan {
+	create(name: string, entries: readonly HivePlanEntry[] = []): HivePlan {
 		const existing = this.findDuplicate(entries)
 		if (existing) return existing
 		const plan = reactive({
 			name,
-			stage: 'draft' as HivePlanStage,
 			entries: entries.map((entry) => ({ ...entry })),
-			validationProgress: hivePlanValidationRequirements(entries, this.plans),
 			knownnessFingerprint: hivePlanFingerprint(entries),
 		}) as HivePlan
 		this.plans = [...this.plans, plan]
 		return plan
 	}
 
-	updateDraft(
+	update(
 		plan: HivePlan,
 		patch: { name?: string; entries?: readonly HivePlanEntry[] }
 	): HivePlan {
-		if (plan.stage !== 'draft') throw new Error('Only draft plans can be edited')
 		const entries = patch.entries ?? plan.entries
 		const duplicate = this.findDuplicate(entries, plan)
 		if (duplicate) return duplicate
 		if (patch.name !== undefined) plan.name = patch.name
 		if (patch.entries) plan.entries = patch.entries.map((entry) => ({ ...entry }))
 		plan.knownnessFingerprint = hivePlanFingerprint(plan.entries)
-		plan.validationProgress = hivePlanValidationRequirements(
-			plan.entries,
-			this.plans.filter((candidate) => candidate !== plan)
-		)
 		return plan
 	}
 
-	sendToValidation(
-		plan: HivePlan
-	): { ok: true; plan: HivePlan } | { ok: false; issues: HivePlanStructuralIssue[] } {
-		const issues = validateHivePlanStructure(this.game, plan.entries)
-		if (issues.length > 0) return { ok: false, issues }
-		plan.validationProgress = hivePlanValidationRequirements(
-			plan.entries,
-			this.plans.filter((candidate) => candidate !== plan)
-		)
-		plan.stage = 'validating'
-		this.game.invalidateWorkPlanning('hive-plan.validation')
-		return { ok: true, plan }
-	}
-
-	archive(plan: HivePlan, reason: HivePlanArchiveReason = 'manual'): boolean {
-		plan.stage = 'archived'
-		plan.archiveReason = reason
-		this.game.invalidateWorkPlanning('hive-plan.archive')
+	remove(plan: HivePlan): boolean {
+		const index = this.plans.indexOf(plan)
+		if (index < 0) return false
+		this.plans = this.plans.filter((candidate) => candidate !== plan)
 		return true
 	}
 
-	unarchive(plan: HivePlan): boolean {
-		plan.stage = 'draft'
-		plan.archiveReason = undefined
-		return true
-	}
-
-	applyResearchWork(plan: HivePlan, seconds: number): void {
-		const progress = plan.validationProgress
-		progress.workSecondsApplied = Math.min(
-			progress.workSecondsRequired,
-			progress.workSecondsApplied + Math.max(0, seconds)
-		)
-		if (progress.workSecondsApplied >= progress.workSecondsRequired) {
-			plan.stage = 'working'
-			this.game.invalidateWorkPlanning('hive-plan.working')
-		}
-	}
-
-	serialize(): SerializedHivePlan[] {
+	serialize(): HivePlan[] {
 		return this.plans.map((plan) => ({
-			...plan,
+			name: plan.name,
 			entries: plan.entries.map((entry) => ({ ...entry })),
-			validationProgress: {
-				...plan.validationProgress,
-				requiredGoods: { ...plan.validationProgress.requiredGoods },
-				deliveredGoods: { ...plan.validationProgress.deliveredGoods },
-			},
+			knownnessFingerprint: plan.knownnessFingerprint,
 		}))
 	}
 
-	deserialize(plans: readonly SerializedHivePlan[] | undefined): void {
+	deserialize(plans: readonly HivePlan[] | undefined): void {
 		this.plans = (plans ?? []).map((plan) =>
 			reactive({
-				...plan,
-				entries: plan.entries.map((entry) => ({ ...entry })),
-				knownnessFingerprint: plan.knownnessFingerprint || hivePlanFingerprint(plan.entries),
-				validationProgress: {
-					...plan.validationProgress,
-					workSecondsApplied: plan.validationProgress?.workSecondsApplied ?? 0,
-					workSecondsRequired: plan.validationProgress?.workSecondsRequired ?? 0,
-					requiredGoods: { ...(plan.validationProgress?.requiredGoods ?? {}) },
-					deliveredGoods: { ...(plan.validationProgress?.deliveredGoods ?? {}) },
-				},
+				name: plan.name,
+				entries: (plan.entries ?? []).map((entry) => ({ ...entry })),
+				knownnessFingerprint: plan.knownnessFingerprint || hivePlanFingerprint(plan.entries ?? []),
 			})
 		) as HivePlan[]
 	}

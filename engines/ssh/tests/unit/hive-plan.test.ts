@@ -33,14 +33,13 @@ const entry = (
 	alveolusType,
 })
 
-describe('hive plans', () => {
-	it('groups plans by stage as object references', () => {
+describe('hive plans (templates)', () => {
+	it('registers templates without a lifecycle stage', () => {
 		const collection = new HivePlanCollection(mockGame())
-		const plan = collection.createDraft('Storage Pair', [entry(0, 0), entry(1, 0)])
-		plan.stage = 'working'
+		const plan = collection.create('Storage Pair', [entry(0, 0), entry(1, 0)])
 
-		expect(collection.workingPlans).toEqual([plan])
-		expect(collection.workingPlans[0]).toBe(plan)
+		expect(collection.plans).toEqual([plan])
+		expect(collection.plans[0]).toBe(plan)
 	})
 
 	it('rejects disconnected layouts before validation', () => {
@@ -56,41 +55,47 @@ describe('hive plans', () => {
 		expect(hivePlanFingerprint(original)).toBe(hivePlanFingerprint(rotated))
 	})
 
-	it('does not create duplicate plans', () => {
+	it('does not create duplicate templates', () => {
 		const collection = new HivePlanCollection(mockGame())
-		const original = collection.createDraft('A', [entry(1, 0), entry(0, 0)])
-		const duplicate = collection.createDraft('B', [entry(0, 1), entry(0, 0)])
+		const original = collection.create('A', [entry(1, 0), entry(0, 0)])
+		const duplicate = collection.create('B', [entry(0, 1), entry(0, 0)])
 
 		expect(duplicate).toBe(original)
 		expect(collection.plans).toHaveLength(1)
 	})
 
-	it('returns the existing matching plan when a draft edit becomes a duplicate', () => {
+	it('returns the existing matching template when an edit becomes a duplicate', () => {
 		const collection = new HivePlanCollection(mockGame())
-		const original = collection.createDraft('A', [entry(1, 0), entry(0, 0)])
-		const draft = collection.createDraft('Draft', [])
+		const original = collection.create('A', [entry(1, 0), entry(0, 0)])
+		const draft = collection.create('Draft', [])
 
-		const result = collection.updateDraft(draft, {
-			entries: [entry(0, 1), entry(0, 0)],
-		})
+		const result = collection.update(draft, { entries: [entry(0, 1), entry(0, 0)] })
 
 		expect(result).toBe(original)
 		expect(draft.entries).toHaveLength(0)
 	})
 
-	it('creates empty drafts immediately without treating them as duplicates', () => {
+	it('creates empty templates immediately without treating them as duplicates', () => {
 		const collection = new HivePlanCollection(mockGame())
-		const a = collection.createDraft('New hive plan', [])
-		const b = collection.createDraft('New hive plan 2', [])
+		const a = collection.create('New hive plan', [])
+		const b = collection.create('New hive plan 2', [])
 
 		expect(a).not.toBe(b)
-		expect(collection.draftPlans).toEqual([a, b])
+		expect(collection.plans).toEqual([a, b])
 		expect(validateHivePlanStructure(mockGame(), a.entries).map((issue) => issue.code)).toContain(
 			'empty'
 		)
 	})
 
-	it('applies build and bulldoze tool actions to draft plan cells', () => {
+	it('removes templates', () => {
+		const collection = new HivePlanCollection(mockGame())
+		const plan = collection.create('A', [entry(0, 0)])
+
+		expect(collection.remove(plan)).toBe(true)
+		expect(collection.plans).toHaveLength(0)
+	})
+
+	it('applies build and bulldoze tool actions to template cells', () => {
 		const added = applyHivePlanToolAction([], 'build:storage', { q: 0, r: 0 })
 
 		expect(added.changed).toBe(true)
@@ -118,16 +123,12 @@ describe('hive plans', () => {
 		)
 	})
 
-	it('uses archived plans as known memory for novelty', () => {
+	it('uses registered templates as known memory for novelty', () => {
 		const collection = new HivePlanCollection(mockGame())
-		const archived = collection.createDraft('Known', [entry(0, 0), entry(1, 0)])
-		collection.archive(archived)
+		collection.create('Known', [entry(0, 0), entry(1, 0)])
 
 		const novelWithoutMemory = hivePlanNoveltyCost([entry(0, 0), entry(1, 0)], [])
-		const novelWithMemory = hivePlanNoveltyCost(
-			[entry(0, 0), entry(1, 0)],
-			collection.archivedPlans
-		)
+		const novelWithMemory = hivePlanNoveltyCost([entry(0, 0), entry(1, 0)], collection.plans)
 
 		expect(novelWithMemory).toBeLessThan(novelWithoutMemory)
 	})
@@ -156,7 +157,7 @@ describe('hive plans', () => {
 		expect(bill).toEqual({ concrete: 2, wood: 4, planks: 20 })
 	})
 
-	it('places a working plan and saves construction provenance', async () => {
+	it('places a template onto the board and saves construction provenance', async () => {
 		const game = new Game(
 			{ terrainSeed: 123, characterCount: 0, settlementGeneration: false },
 			{
@@ -171,8 +172,7 @@ describe('hive plans', () => {
 		await game.loaded
 		game.ticker.stop()
 		try {
-			const plan = game.hivePlans.createDraft('Storage Pair', [entry(0, 0), entry(1, 0)])
-			plan.stage = 'working'
+			const plan = game.hivePlans.create('Storage Pair', [entry(0, 0), entry(1, 0)])
 
 			expect(game.applyHivePlanPlacement(plan, { q: 0, r: 0 }, 0)).toBe(true)
 
@@ -188,7 +188,7 @@ describe('hive plans', () => {
 					}),
 				])
 			)
-			expect(saved.hivePlans?.[0]).toMatchObject({ name: plan.name, stage: 'working' })
+			expect(saved.hivePlans?.[0]).toMatchObject({ name: plan.name })
 		} finally {
 			game.destroy()
 		}

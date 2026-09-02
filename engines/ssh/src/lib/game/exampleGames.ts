@@ -1,5 +1,5 @@
 import type { HivePlan, HivePlanEntry } from 'ssh/hive-plan'
-import { hivePlanFingerprint, hivePlanValidationRequirements } from 'ssh/hive-plan'
+import { hivePlanFingerprint } from 'ssh/hive-plan'
 import { residentialBasicDwellingSite } from '../residential/constants'
 import type { GamePatches } from './game'
 
@@ -162,7 +162,7 @@ export const chopSaw = {
 			],
 		},
 	],
-	projects: {
+	siteMap: {
 		'build:pile.planks': [[-1, 0]],
 	},
 	roads: {
@@ -537,19 +537,13 @@ const sovietWoodland = axialRect(-11, -8, -6, -4)
 /**
  * A registered hive plan in `working` stage: the canonical design for a hive, with
  * entries expressed **relative** to the freight bay at [0,0] so the same design can
- * be re-placed anywhere. Validation progress is marked complete.
+ * be re-placed anywhere.
  */
 function registeredWorkingPlan(name: string, entries: readonly HivePlanEntry[]): HivePlan {
 	const copied = entries.map((entry) => ({ ...entry }))
-	const requirements = hivePlanValidationRequirements(copied, [])
 	return {
 		name,
-		stage: 'working',
 		entries: copied,
-		validationProgress: {
-			...requirements,
-			workSecondsApplied: requirements.workSecondsRequired,
-		},
 		knownnessFingerprint: hivePlanFingerprint(copied),
 	}
 }
@@ -1055,8 +1049,8 @@ export const soviet = {
 		{ name: 'Stone II cutter', position: { q: -29, r: 2 }, assignedAlveolus: [-29, 2] },
 		{ name: 'Stone II roadworker', position: { q: -29, r: 3 }, assignedAlveolus: [-29, 3] },
 	],
-	// The two hive designs, registered as working plans. Every hive above links to
-	// one of these via `hivePlanIndex`: Wood/Wood II → 0, Stone/Stone II → 1.
+	// The two hive designs, registered as templates. Every hive above links to one
+	// of these via `hivePlanIndex`: Wood/Wood II → 0, Stone/Stone II → 1.
 	hivePlans: [
 		registeredWorkingPlan('Wood', woodPlanEntries),
 		registeredWorkingPlan('Stone', stonePlanEntries),

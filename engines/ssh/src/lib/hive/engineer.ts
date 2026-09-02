@@ -18,9 +18,10 @@ export class EngineerAlveolus extends Alveolus {
 
 	get workingGoodsRelations(): GoodsRelations {
 		const relations: GoodsRelations = {}
-		for (const plan of this.game.hivePlans.validatingPlans) {
-			for (const [good, qty] of Object.entries(plan.validationProgress.requiredGoods)) {
-				const delivered = plan.validationProgress.deliveredGoods[good as GoodType] ?? 0
+		for (const project of this.game.projects.projects) {
+			if (project.stage !== 'draft' && project.stage !== 'working') continue
+			for (const [good, qty] of Object.entries(project.validationProgress.requiredGoods)) {
+				const delivered = project.validationProgress.deliveredGoods[good as GoodType] ?? 0
 				const stocked = this.storage.stock[good as GoodType] ?? 0
 				if (delivered + stocked < (qty ?? 0)) {
 					relations[good as GoodType] = { advertisement: 'demand', priority: '1-buffer' }

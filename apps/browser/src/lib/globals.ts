@@ -12,6 +12,8 @@ export {
 	interactionMode,
 	isHoveredObject,
 	mrg,
+	projectEditingState,
+	projectPreviewState,
 	setActiveWorldViewPov,
 	setHoveredObject,
 } from './interactive-state'

@@ -55,6 +55,16 @@
             }
           },
           {
+            "tool": "openProjects",
+            "editor": "button",
+            "config": {
+              "label": "Projects",
+              "icon": "pure-glyf-icon glyf-tabler-outline-crane",
+              "hint": "Open construction projects",
+              "tone": "neutral"
+            }
+          },
+          {
             "tool": "openSaveLoad",
             "editor": "button",
             "config": {
@@ -129,18 +139,6 @@
               "hint": "Zone tools",
               "acceptedKeywords": [
                 "zone"
-              ],
-              "choiceDisplay": "icon"
-            }
-          },
-          {
-            "tool": "selectedAction",
-            "editor": "segmented",
-            "config": {
-              "label": "Roads",
-              "hint": "Road tools",
-              "acceptedKeywords": [
-                "road"
               ],
               "choiceDisplay": "icon"
             }
