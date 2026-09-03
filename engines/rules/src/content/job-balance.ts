@@ -39,6 +39,9 @@ export const jobBalance = {
 	engineer: {
 		foundation: 3,
 		construct: 2,
+		demolish: 2.5,
+		demolishRoad: 2.5,
+		buildRoad: 2.5,
 	},
 	/** Walk to a wheelbarrow and board (line freight, ordinary work band). */
 	vehicleApproach: 2.0,

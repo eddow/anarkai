@@ -143,7 +143,6 @@ function rulesTestOverrides() {
 				action: {
 					type: 'transform',
 					rates: { wood: -0.2, planks: 0.2 },
-					productRatio: { inputGood: 'wood', outputGood: 'planks', maxProductRatio: 0.5 },
 				},
 				construction: { goods: { wood: 1 }, time: 1 },
 			},
@@ -165,7 +164,6 @@ function rulesTestOverrides() {
 				action: {
 					type: 'transform',
 					rates: { wheat: -0.2, flour: 0.2 },
-					productRatio: { inputGood: 'wheat', outputGood: 'flour', maxProductRatio: 0.6 },
 				},
 				construction: { goods: { wood: 1 }, time: 1 },
 			},
@@ -175,7 +173,6 @@ function rulesTestOverrides() {
 				action: {
 					type: 'transform',
 					rates: { flour: -0.15, bread: 0.15 },
-					productRatio: { inputGood: 'flour', outputGood: 'bread', maxProductRatio: 0.7 },
 				},
 				construction: { goods: { wood: 1 }, time: 1 },
 			},
@@ -185,7 +182,6 @@ function rulesTestOverrides() {
 				action: {
 					type: 'transform',
 					rates: { berries: -0.1, mushrooms: -0.1, sandwich: 0.1 },
-					productRatio: { inputGood: 'berries', outputGood: 'sandwich', maxProductRatio: 0.65 },
 				},
 				construction: { goods: { wood: 1 }, time: 1 },
 			},
@@ -308,6 +304,9 @@ function rulesTestOverrides() {
 			engineer: {
 				foundation: 3,
 				construct: 2,
+				demolish: 2.5,
+				demolishRoad: 2.5,
+				buildRoad: 2.5,
 			},
 			defragment: 0.9,
 			vehicleApproach: 2,
@@ -329,7 +328,6 @@ function rulesTestOverrides() {
 			},
 			transform: {
 				working: true,
-				productRatio: undefined,
 			},
 			default: {
 				working: true,

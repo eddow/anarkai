@@ -31,7 +31,6 @@ export const alveoli = {
 		action: {
 			type: 'transform',
 			rates: { wood: -0.2, planks: 0.2 },
-			productRatio: { inputGood: 'wood', outputGood: 'planks', maxProductRatio: 0.5 },
 		},
 		workTime: 2,
 		construction: {
@@ -62,7 +61,6 @@ export const alveoli = {
 		action: {
 			type: 'transform',
 			rates: { wheat: -0.2, flour: 0.2 },
-			productRatio: { inputGood: 'wheat', outputGood: 'flour', maxProductRatio: 0.6 },
 		},
 		workTime: 2,
 		construction: {
@@ -75,7 +73,6 @@ export const alveoli = {
 		action: {
 			type: 'transform',
 			rates: { flour: -0.15, bread: 0.15 },
-			productRatio: { inputGood: 'flour', outputGood: 'bread', maxProductRatio: 0.7 },
 		},
 		workTime: 2,
 		construction: {
@@ -88,7 +85,6 @@ export const alveoli = {
 		action: {
 			type: 'transform',
 			rates: { berries: -0.1, mushrooms: -0.1, sandwich: 0.1 },
-			productRatio: { inputGood: 'berries', outputGood: 'sandwich', maxProductRatio: 0.65 },
 		},
 		workTime: 2,
 		construction: {
@@ -261,7 +257,6 @@ export const alveoli = {
 		action: {
 			type: 'transform',
 			rates: { iron_ore: -0.2, copper_ore: -0.2, iron_ingot: 0.2, copper_ingot: 0.2 },
-			productRatio: { inputGood: 'iron_ore', outputGood: 'iron_ingot', maxProductRatio: 0.6 },
 		},
 		workTime: 2,
 		construction: { goods: { wood: 3, stone: 4, planks: 1 }, time: 7 },
@@ -271,7 +266,6 @@ export const alveoli = {
 		action: {
 			type: 'transform',
 			rates: { iron_ingot: -0.2, coal: -0.2, steel: 0.2 },
-			productRatio: { inputGood: 'iron_ingot', outputGood: 'steel', maxProductRatio: 0.7 },
 		},
 		workTime: 2,
 		construction: { goods: { wood: 3, stone: 4, planks: 2 }, time: 8 },
@@ -281,7 +275,6 @@ export const alveoli = {
 		action: {
 			type: 'transform',
 			rates: { silica_sand: -0.2, glass: 0.2 },
-			productRatio: { inputGood: 'silica_sand', outputGood: 'glass', maxProductRatio: 0.5 },
 		},
 		workTime: 2,
 		construction: { goods: { wood: 2, stone: 3 }, time: 6 },
@@ -291,7 +284,6 @@ export const alveoli = {
 		action: {
 			type: 'transform',
 			rates: { clay: -0.2, bricks: 0.2 },
-			productRatio: { inputGood: 'clay', outputGood: 'bricks', maxProductRatio: 0.6 },
 		},
 		workTime: 2,
 		construction: { goods: { wood: 2, stone: 3 }, time: 6 },
@@ -301,7 +293,6 @@ export const alveoli = {
 		action: {
 			type: 'transform',
 			rates: { wheat: -0.2, cooking_oil: 0.2 },
-			productRatio: { inputGood: 'wheat', outputGood: 'cooking_oil', maxProductRatio: 0.4 },
 		},
 		workTime: 2,
 		construction: { goods: { wood: 2, planks: 1 }, time: 4 },
@@ -311,7 +302,6 @@ export const alveoli = {
 		action: {
 			type: 'transform',
 			rates: { wheat: -0.1, iron_ore: -0.1, fresh_water: -0.1, lye: 0.3 },
-			productRatio: { inputGood: 'wheat', outputGood: 'lye', maxProductRatio: 0.5 },
 		},
 		workTime: 2,
 		construction: { goods: { wood: 3, stone: 3 }, time: 7 },
@@ -321,7 +311,6 @@ export const alveoli = {
 		action: {
 			type: 'transform',
 			rates: { crude_tar: -0.2, refined_fuel: 0.2 },
-			productRatio: { inputGood: 'crude_tar', outputGood: 'refined_fuel', maxProductRatio: 0.6 },
 		},
 		workTime: 2,
 		construction: { goods: { wood: 3, stone: 3, planks: 1 }, time: 7 },
@@ -338,11 +327,6 @@ export const alveoli = {
 				shafts: 0.1,
 				hand_tools: 0.2,
 			},
-			productRatio: {
-				inputGood: 'iron_ingot',
-				outputGood: 'mechanical_parts',
-				maxProductRatio: 0.5,
-			},
 		},
 		workTime: 2,
 		construction: { goods: { wood: 3, stone: 4 }, time: 8 },
@@ -352,7 +336,6 @@ export const alveoli = {
 		action: {
 			type: 'transform',
 			rates: { steel: -0.2, iron_ingot: -0.1, powered_tools: 0.2 },
-			productRatio: { inputGood: 'steel', outputGood: 'powered_tools', maxProductRatio: 0.5 },
 		},
 		workTime: 2,
 		construction: { goods: { wood: 3, stone: 4, planks: 2 }, time: 8 },
@@ -362,7 +345,6 @@ export const alveoli = {
 		action: {
 			type: 'transform',
 			rates: { copper_ingot: -0.2, glass: -0.2, circuits: 0.2, lenses: 0.1, precision_tools: 0.1 },
-			productRatio: { inputGood: 'copper_ingot', outputGood: 'circuits', maxProductRatio: 0.5 },
 		},
 		workTime: 2,
 		construction: { goods: { wood: 3, stone: 3, planks: 2 }, time: 8 },
@@ -372,7 +354,6 @@ export const alveoli = {
 		action: {
 			type: 'transform',
 			rates: { wheat: -0.2, clothes: 0.2 },
-			productRatio: { inputGood: 'wheat', outputGood: 'clothes', maxProductRatio: 0.5 },
 		},
 		workTime: 2,
 		construction: { goods: { wood: 2, planks: 1 }, time: 5 },
@@ -382,7 +363,6 @@ export const alveoli = {
 		action: {
 			type: 'transform',
 			rates: { cooking_oil: -0.2, lye: -0.2, soap: 0.2 },
-			productRatio: { inputGood: 'cooking_oil', outputGood: 'soap', maxProductRatio: 0.6 },
 		},
 		workTime: 2,
 		construction: { goods: { wood: 2, stone: 2 }, time: 5 },
@@ -392,7 +372,6 @@ export const alveoli = {
 		action: {
 			type: 'transform',
 			rates: { circuits: -0.2, glass: -0.1, lighting: 0.2 },
-			productRatio: { inputGood: 'circuits', outputGood: 'lighting', maxProductRatio: 0.6 },
 		},
 		workTime: 2,
 		construction: { goods: { wood: 2, planks: 2, stone: 1 }, time: 6 },
@@ -402,11 +381,6 @@ export const alveoli = {
 		action: {
 			type: 'transform',
 			rates: { mechanical_parts: -0.2, circuits: -0.2, conveyors: 0.2 },
-			productRatio: {
-				inputGood: 'mechanical_parts',
-				outputGood: 'conveyors',
-				maxProductRatio: 0.6,
-			},
 		},
 		workTime: 2,
 		construction: { goods: { wood: 3, stone: 3, planks: 3 }, time: 9 },

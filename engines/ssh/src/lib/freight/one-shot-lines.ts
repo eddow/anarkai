@@ -36,6 +36,7 @@ import type { Game } from 'ssh/game/game'
 import { GameObject } from 'ssh/game/object'
 import type { Hive } from 'ssh/hive/hive'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
+import { type Project, projectSourcingMode } from 'ssh/project'
 import type { Storage } from 'ssh/storage/storage'
 import type { GoodType } from 'ssh/types/base'
 import type { AxialCoord } from 'ssh/utils/axial'
@@ -78,6 +79,12 @@ function constructionTarget(content: unknown): FreightLineTarget | undefined {
 		return content
 	}
 	return undefined
+}
+
+/** The owning project of a construction content object, if it was placed by a project. */
+function contentProject(content: unknown): Project | undefined {
+	if (!content || typeof content !== 'object' || !('project' in content)) return undefined
+	return (content as { project?: Project }).project
 }
 
 /** The construction demand a structure declares (shell remaining needs, or foundation shortfall). */
@@ -250,6 +257,8 @@ export function trySpawnConstructionLines(game: Game, policy: SourcingPolicy): n
 			if (!destCoord) continue
 			for (const good of exportable) {
 				if ((needs[good] ?? 0) <= 0) continue
+				// A project explicitly marked this good `buy` — leave it to the external branch.
+				if (projectSourcingMode(contentProject(content), good) === 'buy') continue
 				if (hasTransportCoveringNeed(game, good, destCoord)) continue
 				const vehicle = findFreeVehicle(game)
 				if (!vehicle) return spawned
@@ -313,6 +322,8 @@ export function trySpawnConstructionDeliveries(
 			if (!storage) continue
 			const destCoord = needSourceCoord(need.source)
 			if (!destCoord) continue
+			// A project explicitly marked this good `take` — leave it to the self-haul branch.
+			if (projectSourcingMode(contentProject(need.source), good) === 'take') continue
 			if (hasTransportCoveringNeed(game, good, destCoord)) continue
 
 			const offers = measureExternalSourceOffers(game, good, destCoord).sort(compareSourceOffers)

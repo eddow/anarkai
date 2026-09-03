@@ -97,10 +97,27 @@ Roads v1/v1.5 is landed as border-owned road infrastructure:
   and construction projects
 - Chopsaw includes a sample road from `-3,1` to `1,1`
 
-Deferred road work: builder/project workflows, multiple road kinds, lanes/markings, route-benefit UI, and
+Deferred road work: multiple road kinds, lanes/markings, route-benefit UI, and
 physical multi-hex corridors.
 
 Details and future lane/corridor vocabulary are documented in [`./roads.md`](./roads.md).
+
+### Construction projects
+
+Projects are the primary construction surface — a forward declaration of demand authored before any
+tile is built, then committed onto the board (see [`./projects.md`](./projects.md) and
+[`../plans/projects.md`](../plans/projects.md)):
+
+- `Project` (placed, absolute coords) vs `HivePlan` (template, relative coords) split across
+  `game.projects` / `game.hivePlans`; the lifecycle is `draft → working → archived`.
+- Commit validates **instantly** (structure + board occupancy) and materializes entries as
+  `BuildAlveolus` shells linked to the project; roads materialize as `RoadConstructionSite`s.
+- Demolition is a first-class phase (`bulldoze → clean → foundation → construction`): `demolish` /
+  `demolishRoad` jobs refund ~50% of construction materials as loose goods.
+- Per-good sourcing policy (`auto` / `take` / `buy`) seeds the transport-automation buy-vs-self-haul
+  decision; committed projects show live progress (`Game.projectProgress`).
+- The `project-manager.tsx` widget is the authoring + progress surface (placement preview, build/road/
+  bulldoze/hive tools, variant picker, bill + sourcing toggle).
 
 ### Settlements and Commerce
 

@@ -1,36 +1,54 @@
 # Construction projects
 
 A **project** is a planned, connected set of construction entries authored *before* any tile is built.
-It is the design surface for a future hive: place alveoli (with variants and configuration), bulldoze
-mistakes, validate the layout, then push it onto the board.
+It is the design surface for a future hive (and its roads): place alveoli (with variants and
+configuration), bulldoze mistakes, then **commit** it onto the board where it materializes as
+construction sites and builds over time.
 
-Internal name: `HivePlan` (`engines/ssh/src/lib/hive-plan.ts`). Working notes and open questions live
-in [`../plans/projects.md`](../plans/projects.md); this document records decisions and what is done.
+Working notes and the remaining TODO list live in [`../plans/projects.md`](../plans/projects.md);
+this document records the decisions and the current specification.
 
 ## Concept
 
-- A project is authored as **entries**, not as live tiles. Nothing is built until it is pushed.
-- It behaves like a git branch: draft → validated → pushed (`working`); it can be archived, restored,
-  and merged with other projects.
-- A project carries the **future demand** of what it will build — this is what lets commerce plan
-  imports before anything exists (see [commerce.md](./commerce.md)).
+- A project is authored as **entries** (absolute board coordinates), not as live tiles. Nothing is
+  built until it is committed.
+- It is the authoring unit for buildings **and** roads, and (later) city interfaces whose cost may
+  include demolishing existing structures.
+- It is a **forward declaration of demand**: the bill (`validationProgress.requiredGoods`) is known
+  before anything exists, which is what lets commerce plan imports (see [commerce.md](./commerce.md)).
 
-## Scope and granularity
+## Data model
 
-Projects are the **primary construction surface**. Editing a live hive (placing a single alveolus into
-an existing one) is the advanced, rare path — the normal flow is to design a whole building cluster as a
-project and place it.
+`Project` (placement) and `HivePlan` (template) are two registries on `Game`:
 
-- The smallest project is **one building = one hive** (e.g. a lone freight bay).
-- A project **composes** buildings into a cluster: wood-chopper + sawmill + freight bay authored as one
-  3-alveoli plan, which the player then scatters several copies of around a forest.
-- The same plan is **reusable** — place it, then stamp the identical cluster elsewhere (see "reusable
-  plans" in the working notes).
-- Projects also manage **roads / track laying**, and **city relations**: building a stop or station in
-  a city is a project whose cost may include demolishing existing buildings.
+- `game.projects` — `ProjectCollection`; owns the lifecycle stage machine.
+- `game.hivePlans` — `HivePlanCollection`; static templates (the "Plans" panel), no lifecycle.
 
-So a project is not only "a future hive" — it is the authoring unit for buildings, transport links, and
-city interfaces alike.
+```ts
+type ProjectStage = 'draft' | 'working' | 'archived'   // `validating` deferred (instant for now)
+
+interface Project {
+	name: string
+	stage: ProjectStage
+	entries: ProjectEntry[]                              // ABSOLUTE board coords (placed alveoli)
+	roads: RoadPatch[]                                   // pending road segments (built via sites)
+	demolitions: Array<readonly [number, number]>        // structures to bulldoze on commit
+	roadDemolitions: RoadPatch[]                         // board road segments to bulldoze on commit
+	sourcing: ProjectSourcingPolicy                      // per-good auto / take / buy
+	validationProgress: HivePlanValidationProgress       // the bill (required/delivered goods)
+	knownnessFingerprint: string                         // position-independent dedup
+	archiveReason?: 'manual' | 'obsolete'
+}
+
+// A project entry is structurally identical to a template entry; the difference is that
+// ProjectEntry.coord is ABSOLUTE while HivePlanEntry.coord is RELATIVE (template coords).
+type ProjectEntry = HivePlanEntry
+
+interface HivePlan { name: string; entries: HivePlanEntry[]; knownnessFingerprint: string }
+```
+
+`RoadPatch` is `{ coord: [q, r], type: 'path' | 'asphalt' }`. For display, roads are **grouped** —
+"1 road" = one connected component of the *same* road type (`groupRoadsByConnectedType`).
 
 ## Entry
 
@@ -43,65 +61,90 @@ An entry is `{ coord, alveolusType, variant?, configuration? }`:
 
 ## Lifecycle
 
-Stages: `draft → validating → working → archived`.
+Stages: `draft → working → archived`. Validation is **instant** (see below).
 
 | Stage | Meaning | Editable |
 |---|---|---|
 | `draft` | private intent; no board demand, no construction | yes |
-| `validating` | structure checks pass; consumes engineer work + survey goods | no |
-| `working` | **pushed** — materializes as construction sites on the board | no |
+| `working` | **committed** — materializes as construction sites on the board | name/entries locked; sourcing tunable |
 | `archived` | retired (`manual` / `obsolete`); restorable to `draft` | no |
 
-Transitions (`HivePlanCollection`):
+Transitions (`ProjectCollection`):
 
 - `createDraft` / `updateDraft` — draft editing only.
-- `sendToValidation` — runs structural validation, moves to `validating`.
-- `applyResearchWork` — engineer work fills `workSecondsRequired`; when full → `working`.
+- `commit` — structural + occupancy validation, then freeze `draft → working`.
 - `archive` / `unarchive`.
+- `setSourcingMode` — editable in `draft` **and** `working` (quotas stay tunable while running).
 
-## Structure & validation
+## Validation (instant)
 
-`validateHivePlanStructure` rejects:
-
-- empty, disconnected (entries must form one connected hive), unknown alveolus type, missing named
-  configuration.
-
-Every plan also carries a rotation-invariant `knownnessFingerprint` used to dedupe identical designs, and
-a "novelty cost" that makes reusing an already-known layout cheaper to validate than a novel one.
+Commit runs `validateProjectStructure` (rejects empty / disconnected / unknown alveolus type / missing
+named configuration) plus a board-occupancy check (`canInteract(build:)` + `isClear`), then freezes
+`draft → working` in the same call. There is **no** `validating` stage and no research work — the
+`engineer.research` "study" variant produces no jobs. Science/study is a separate deferred surface; see
+[`../plans/science.md`](../plans/science.md).
 
 ## Placement
 
-A `working` plan is placed onto the board via `previewHivePlanPlacement` (anchor + rotation), which
-checks each cell (`overlap`, `missing tile`, `blocked`, `not clear`) before committing. Placement creates
-one construction site per entry (`createConstructionSiteForHivePlanEntry`), each carrying the plan and
-the entry's configuration so the finished alveolus is built already-configured.
+`Game.commitProject` materializes a `draft` project:
+
+- Every **entry** becomes a construction shell (`BuildAlveolus`) linked to the project
+  (`shell.project === project`), unless it sits on a demolition tile — those entries are **deferred**
+  until the structure there is bulldozed (`materializeDeferredEntriesAt`).
+- Every **road** stays in `project.roads` and becomes a `RoadConstructionSite` on its anchor tile
+  (see "Roads" below).
+
+## Demolition
+
+A project can plan to bulldoze existing board content. The sequence is
+**bulldoze → clean → foundation → construction**:
+
+- `Project.demolitions` (structures) and `Project.roadDemolitions` (board road segments) are authored
+  by the bulldoze tool ("bulldozing a tile = destroying all segments on its borders").
+- Building engineers run `demolish` jobs (`Alveolus.deconstruct` + storage clean-up + ~50% material
+  refund as loose goods); road engineers run `demolishRoad` jobs (one segment at a time, ~50% refund as
+  loose goods on the border's anchor tile).
+- Refunded goods land on the tile as loose goods and are re-used by the economy.
+
+## Roads
+
+Roads build **like any other building** — one segment at a time, not instantly:
+
+- A road segment is `construction.road[type]` = `{ goods, time }` (`path`: stone; `asphalt`: stone +
+  planks). Roads have **no concrete foundation**.
+- Each segment's construction site is a `RoadConstructionSite` on the border's **anchor tile** (the
+  lexicographically-smaller endpoint, so build-side and demolition-refund-side are the same tile). It
+  is a full `ConstructionSiteShell` — it advertises material demand through the normal path, receives
+  goods into its own storage, and, once ready, a road engineer works and `finalize()`s it (placing the
+  segment and restoring the tile).
+- `materializePendingRoadSites` is called on commit and whenever a site finalizes and frees its anchor
+  tile (so two segments sharing an anchor build sequentially).
+
+## Sourcing
+
+Each bill good has a per-good **sourcing mode** (`Project.sourcing: Partial<Record<GoodType, mode>>`):
+
+- `auto` (default) — internal-first self-haul, external buy fallback (the internality slider).
+- `take` — self-haul only (own hive → site); never bought externally.
+- `buy` — outside delivery only (NPC settlement → site); never self-hauled.
+
+The transport automation (`trySpawnConstructionLines` / `trySpawnConstructionDeliveries`) reads the mode:
+a `take` good is skipped by the delivery branch, a `buy` good is skipped by the self-haul branch. Unset
+goods fall back to `auto` (current behaviour). The toggle is surfaced in the project detail's bill.
+
+## Progress
+
+Committed projects show **live** progress (`Game.projectProgress`, read from the board — not the frozen
+plan): an aggregate `ConstructionProgressBar` (`completed` / `total`) plus per-item state
+(`pending` / `building` / `done`) for each alveolus entry and road segment, and the goods-still-missing
+count (`remainingNeeds` summed across materialized shells).
 
 ## Interface
 
-The project window is `plan-manager.tsx` (+ `HivePlanCanvas.tsx`):
+The project window is `project-manager.tsx` (opened via `openProjectsPanel` / the "Open projects"
+palette tool):
 
-- **Sidebar** — New; stage filters (all / draft / validating / working / archived); plan list.
-- **Designer** — name field, the hex canvas (build:/bulldoze tools from the palette), live structural
-  issue list.
-- **Selected cell** — alveolus picker, variant picker, named-configuration picker.
-- **Plan actions** — validate, archive, unarchive, place (with rotation).
-
-## Bill of materials → commerce
-
-The decided direction: a project is a **forward declaration of demand**, not just a blueprint.
-
-1. `validationProgress.requiredGoods` (currently a survey-good stub) becomes the **real bill** — the sum
-   of construction recipes over all entries.
-2. The configured **operating demand** of the future alveoli (storage buffers, transform inputs) joins
-   the bill.
-3. On push, the bill enters the group's **net-deficit ledger**, so freight/trade can start importing
-   missing goods *before* construction stalls.
-
-This is what turns "buy all not produced" from a UI shortcut into a computed quantity, and it is the same
-demand origin trade already understands — projects are a demand source, not a separate trading mechanism.
-
-The bill is not a flat `{ good: qty }` — it is a set of **sourcing requirements** ("buy X units of good G
-from source S"), splittable across sources with **quotas** (own forester 40 + NPC settlement 60). Quotas
-stay editable while the project runs, and resolution is **internal-first** (own hives after their own
-demand + reserve, then external sources ranked by price × stock × distance). See
-[commerce.md](./commerce.md#net-deficit-ledger-and-sourcing).
+- **Sidebar** — New; stage filters (all / draft / working / archived); project list with a preview radio.
+- **Detail** — name (draft-editable), contents tree (alveoli flat + roads grouped), **bill** with
+  per-good sourcing toggle, **progress** (working), **build tools** (hives / alveoli + variants / roads /
+  bulldoze), and **actions** (commit / archive / unarchive).

@@ -1,11 +1,13 @@
 import { isConstructionSiteShell } from 'ssh/build-site'
+import { demolishStructure } from 'ssh/construction-demolition'
 import { Game } from 'ssh/game/game'
 import type { HivePlan, HivePlanEntry } from 'ssh/hive-plan'
-import { hivePlanFingerprint } from 'ssh/hive-plan'
+import { hivePlanCenterOffset, hivePlanFingerprint, rotateHivePlanCoord } from 'ssh/hive-plan'
 import {
 	groupRoadsByConnectedType,
-	projectFingerprint,
 	ProjectCollection,
+	projectFingerprint,
+	projectSourcingMode,
 	projectValidationRequirements,
 	stampHivePlanEntries,
 	validateProjectStructure,
@@ -64,12 +66,58 @@ describe('projects (placed alveoli + roads)', () => {
 	})
 
 	it('mirrors a template when stamping', () => {
-		const stamped = stampHivePlanEntries(template('T', [entry(0, 0), entry(1, 0)]), { q: 0, r: 0 }, 0, true)
+		const stamped = stampHivePlanEntries(
+			template('T', [entry(0, 0), entry(1, 0)]),
+			{ q: 0, r: 0 },
+			0,
+			true
+		)
 		// mirror (q,r) → (r,q): (0,0) → (0,0), (1,0) → (0,1)
 		expect(stamped.map((entry) => entry.coord)).toEqual([
 			[0, 0],
 			[0, 1],
 		])
+	})
+
+	it('normalizes a plan authored far from origin to its centroid when stamped', () => {
+		// Template authored at absolute-ish relative coords (5,5)/(6,5): centroid → (5,5).
+		const center = hivePlanCenterOffset([entry(5, 5), entry(6, 5)], 0, false)
+		expect(center).toEqual({ q: 5, r: 5 })
+
+		const stamped = stampHivePlanEntries(
+			template('T', [entry(5, 5), entry(6, 5)]),
+			{ q: 0, r: 0 },
+			0,
+			false
+		)
+		expect(stamped.map((entry) => entry.coord)).toEqual([
+			[0, 0],
+			[1, 0],
+		])
+	})
+
+	it('computes a single-tile centroid at the origin', () => {
+		expect(hivePlanCenterOffset([entry(0, 0)], 0, false)).toEqual({ q: 0, r: 0 })
+		expect(hivePlanCenterOffset([], 0, false)).toEqual({ q: 0, r: 0 })
+	})
+
+	it('keeps the centroid handle stable under rotation (rotation-equivariant)', () => {
+		const entries = [entry(0, 0), entry(1, 0), entry(0, 1)]
+		const base = hivePlanCenterOffset(entries, 0, false)
+		for (let rotation = 0; rotation < 6; rotation++) {
+			// Rounding happens once on the base shape, so the rotated handle is the
+			// exact rotation of the base handle (no re-rounding drift).
+			expect(hivePlanCenterOffset(entries, rotation, false)).toEqual(
+				rotateHivePlanCoord([base.q, base.r], rotation)
+			)
+		}
+	})
+
+	it('keeps the centroid handle stable under mirror', () => {
+		const entries = [entry(0, 0), entry(2, 0), entry(0, 1)]
+		const base = hivePlanCenterOffset(entries, 0, false)
+		// mirror (q,r) → (r,q): the rounded base centroid mirrors exactly.
+		expect(hivePlanCenterOffset(entries, 0, true)).toEqual({ q: base.r, r: base.q })
 	})
 
 	it('dedupes projects with the same relative layout at different positions', () => {
@@ -88,6 +136,78 @@ describe('projects (placed alveoli + roads)', () => {
 
 		expect(a).not.toBe(b)
 		expect(collection.draftProjects).toEqual([a, b])
+	})
+
+	it('tracks demolition todos and round-trips them through serialization', () => {
+		const collection = new ProjectCollection(mockGame())
+		const project = collection.createDraft('A', [entry(0, 0)])
+
+		collection.updateDraft(project, {
+			demolitions: [
+				[2, 3],
+				[4, 5],
+			],
+		})
+		expect(project.demolitions).toEqual([
+			[2, 3],
+			[4, 5],
+		])
+
+		const serialized = collection.serialize()
+		expect(serialized[0].demolitions).toEqual([
+			[2, 3],
+			[4, 5],
+		])
+
+		const restored = new ProjectCollection(mockGame())
+		restored.deserialize(serialized)
+		expect(restored.projects[0].demolitions).toEqual([
+			[2, 3],
+			[4, 5],
+		])
+	})
+
+	it('tracks road demolition todos and removes completed ones', () => {
+		const collection = new ProjectCollection(mockGame())
+		const project = collection.createDraft('A', [entry(0, 0)])
+
+		collection.updateDraft(project, {
+			demolitions: [[2, 3]],
+			roadDemolitions: [{ coord: [0, 1.5], type: 'path' }],
+		})
+		expect(project.roadDemolitions).toEqual([{ coord: [0, 1.5], type: 'path' }])
+
+		const serialized = collection.serialize()
+		const restored = new ProjectCollection(mockGame())
+		restored.deserialize(serialized)
+		expect(restored.projects[0].roadDemolitions).toEqual([{ coord: [0, 1.5], type: 'path' }])
+
+		expect(collection.removeRoadDemolition(project, [0, 1.5])).toBe(true)
+		expect(project.roadDemolitions).toEqual([])
+		expect(collection.removeRoadDemolition(project, [0, 1.5])).toBe(false)
+
+		expect(collection.removeDemolition(project, [2, 3])).toBe(true)
+		expect(project.demolitions).toEqual([])
+		expect(collection.removeDemolition(project, [2, 3])).toBe(false)
+	})
+
+	it('tracks per-good sourcing policy and round-trips it', () => {
+		const collection = new ProjectCollection(mockGame())
+		const project = collection.createDraft('A', [entry(0, 0)])
+
+		// Defaults to `auto` for any good.
+		expect(projectSourcingMode(project, 'stone')).toBe('auto')
+		expect(projectSourcingMode(undefined, 'stone')).toBe('auto')
+
+		collection.setSourcingMode(project, 'stone', 'buy')
+		collection.setSourcingMode(project, 'wood', 'take')
+		expect(projectSourcingMode(project, 'stone')).toBe('buy')
+		expect(projectSourcingMode(project, 'wood')).toBe('take')
+
+		const restored = new ProjectCollection(mockGame())
+		restored.deserialize(collection.serialize())
+		expect(projectSourcingMode(restored.projects[0], 'stone')).toBe('buy')
+		expect(projectSourcingMode(restored.projects[0], 'wood')).toBe('take')
 	})
 
 	it('validates project structure', () => {
@@ -155,7 +275,7 @@ describe('projects (placed alveoli + roads)', () => {
 		expect(project.stage).toBe('draft')
 	})
 
-	it('materializes entries as construction shells and applies roads', async () => {
+	it('materializes entries as construction shells and defers roads to road engineers', async () => {
 		const game = new Game(
 			{ terrainSeed: 7, characterCount: 0, settlementGeneration: false },
 			{
@@ -185,7 +305,13 @@ describe('projects (placed alveoli + roads)', () => {
 			expect(isConstructionSiteShell(shell)).toBe(true)
 			expect((shell as { project?: unknown }).project).toBe(project)
 
-			expect(game.hex.getRoadType({ q: 0, r: 1.5 })).toBe('path')
+			// Roads are built over time by road engineers, not applied at commit.
+			expect(game.hex.getRoadType({ q: 0, r: 1.5 })).toBeUndefined()
+			expect(project.roads).toEqual([{ coord: [0, 1.5], type: 'path' }])
+
+			// Removing the built todo reflects completion.
+			expect(game.projects.removeRoad(project, [0, 1.5])).toBe(true)
+			expect(project.roads).toEqual([])
 		} finally {
 			game.destroy()
 		}
@@ -218,7 +344,9 @@ describe('projects (placed alveoli + roads)', () => {
 			{ terrainSeed: 9, characterCount: 0, settlementGeneration: false },
 			{
 				terrains: { grass: [[0, 0]] },
-				hives: [{ name: 'Occ', alveoli: [{ coord: [0, 0] as const, alveolus: 'storage' as const }] }],
+				hives: [
+					{ name: 'Occ', alveoli: [{ coord: [0, 0] as const, alveolus: 'storage' as const }] },
+				],
 			}
 		)
 		await game.loaded
@@ -230,6 +358,42 @@ describe('projects (placed alveoli + roads)', () => {
 
 			expect(result.ok).toBe(false)
 			expect(project.stage).toBe('draft')
+		} finally {
+			game.destroy()
+		}
+	})
+
+	it('defers an entry on a demolition tile until the structure is bulldozed', async () => {
+		const game = new Game(
+			{ terrainSeed: 10, characterCount: 0, settlementGeneration: false },
+			{
+				terrains: { grass: [[0, 0]] },
+				hives: [
+					{ name: 'Occ', alveoli: [{ coord: [0, 0] as const, alveolus: 'storage' as const }] },
+				],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+		try {
+			const project = game.projects.createDraft('Rebuild', [entry(0, 0)])
+			game.projects.updateDraft(project, { demolitions: [[0, 0]] })
+
+			const result = game.commitProject(project)
+			expect(result.ok).toBe(true)
+			expect(project.stage).toBe('working')
+
+			// Entry is deferred: the existing structure is still there, not a shell.
+			const tile = game.hex.getTile({ q: 0, r: 0 })!
+			expect(isConstructionSiteShell(tile.content)).toBe(false)
+
+			// Bulldoze → tile is clear; the deferred entry can now materialize.
+			demolishStructure(tile)
+			game.materializeDeferredEntriesAt({ q: 0, r: 0 })
+
+			const shell = game.hex.getTile({ q: 0, r: 0 })!.content
+			expect(isConstructionSiteShell(shell)).toBe(true)
+			expect((shell as { project?: unknown }).project).toBe(project)
 		} finally {
 			game.destroy()
 		}

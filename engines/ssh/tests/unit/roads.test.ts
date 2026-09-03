@@ -4,6 +4,7 @@ import {
 	canBuildRoadAcrossBorder,
 	canBuildRoadOnTrace,
 	ROAD_WALK_TIME_MULTIPLIERS,
+	roadBorderAnchorCoord,
 	roadBordersForTrace,
 	straightRoadCoords,
 	straightRoadTileTrace,
@@ -430,5 +431,21 @@ describe('road build validation', () => {
 		} finally {
 			game.destroy()
 		}
+	})
+})
+
+describe('roadBorderAnchorCoord', () => {
+	it('picks the lexicographically-smaller endpoint deterministically', () => {
+		// Horizontal border midpoint (0.5, 0) → endpoints (0,0) and (1,0).
+		expect(roadBorderAnchorCoord([0.5, 0])).toEqual([0, 0])
+		// Vertical border midpoint (0, 0.5) → endpoints (0,0) and (0,1).
+		expect(roadBorderAnchorCoord([0, 0.5])).toEqual([0, 0])
+		// Diagonal border midpoint (0.5, 0.5) → endpoints (0,1) and (1,0).
+		expect(roadBorderAnchorCoord([0.5, 0.5])).toEqual([0, 1])
+	})
+
+	it('is stable and lexicographic across negative coords', () => {
+		expect(roadBorderAnchorCoord([0.5, 0])).toEqual(roadBorderAnchorCoord([0.5, 0]))
+		expect(roadBorderAnchorCoord([-0.5, 0])).toEqual([-1, 0])
 	})
 })

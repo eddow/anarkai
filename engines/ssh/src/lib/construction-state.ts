@@ -1,5 +1,6 @@
 import { alveoli, construction } from 'engine-rules'
 import { reactive } from 'mutts'
+import type { RoadType } from 'ssh/board/roads'
 import { residentialBasicDwellingSite } from 'ssh/residential/constants'
 import type { AlveolusType, GoodType } from 'ssh/types/base'
 
@@ -23,6 +24,7 @@ export type DwellingTier = 'basic_dwelling'
 export type ConstructionTarget =
 	| { readonly kind: 'alveolus'; readonly alveolusType: AlveolusType; readonly variant?: string }
 	| { readonly kind: 'dwelling'; readonly tier: DwellingTier }
+	| { readonly kind: 'road'; readonly roadType: RoadType }
 
 export interface ConstructionRecipe {
 	readonly goods: Partial<Record<GoodType, number>>
@@ -229,16 +231,26 @@ export function createConstructionRecipe(
 	if (target.kind === 'dwelling') {
 		return { ...dwellingRecipeByTier[target.tier] }
 	}
+	if (target.kind === 'road') {
+		return ruleConstructionRecipe(construction.road[target.roadType])
+	}
 	throw new Error('Unsupported construction target')
 }
 
 /** Reconstitute a project string from a ConstructionTarget (e.g., "build:pile.wood.extra"). */
 export function projectFromConstructionTarget(target: ConstructionTarget): string {
 	if (target.kind === 'dwelling') return residentialBasicDwellingSite
+	if (target.kind === 'road') return `road:${target.roadType}`
 	if (target.variant) {
 		return `build:${target.alveolusType}${VARIANT_DELIMITER}${target.variant}`
 	}
 	return `build:${target.alveolusType}`
+}
+
+/** Foundation goods rule for a target: roads have no concrete foundation. */
+function foundationRuleForTarget(target: ConstructionTarget): { goods: object; time: number } {
+	if (target.kind === 'road') return { goods: {}, time: 0 }
+	return construction.foundation
 }
 
 export function createConstructionSiteState(
@@ -246,7 +258,7 @@ export function createConstructionSiteState(
 	stepIndex = 0
 ): ConstructionSiteState {
 	const recipe = createConstructionRecipe(target, stepIndex)
-	const foundationRecipe = ruleConstructionRecipe(construction.foundation)
+	const foundationRecipe = ruleConstructionRecipe(foundationRuleForTarget(target))
 	return normalizeConstructionSiteState(
 		reactive({
 			target,
@@ -287,7 +299,7 @@ export function normalizeConstructionSiteState(
 ): ConstructionSiteState {
 	const stepIdx = state.stepIndex ?? 0
 	const recipe = createConstructionRecipe(state.target, stepIdx)
-	const foundationRecipe = ruleConstructionRecipe(construction.foundation)
+	const foundationRecipe = ruleConstructionRecipe(foundationRuleForTarget(state.target))
 	if (
 		!state.recipe ||
 		state.recipe.workSeconds !== recipe.workSeconds ||

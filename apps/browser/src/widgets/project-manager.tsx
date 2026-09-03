@@ -1,16 +1,22 @@
+import ConstructionProgressBar from '@app/components/ConstructionProgressBar'
+import {
+	getAppShellBuildToolbarRoots,
+	getAppShellVariantEntries,
+} from '@app/lib/app-shell-controls'
 import { css } from '@app/lib/css'
-import { game, projectEditingState, projectPreviewState } from '@app/lib/globals'
+import { game, interactionMode, projectEditingState, projectPreviewState } from '@app/lib/globals'
 import { Button, InspectorSection } from '@app/ui/anarkai'
-import { alveoli as alveoliRules } from 'engine-rules'
 import { effect, reactive } from 'mutts'
 import { ROAD_TYPES } from 'ssh/board/roads'
+import type { ProjectSourcingMode } from 'ssh/commerce/commerce-model'
 import type { HivePlan } from 'ssh/hive-plan'
 import {
 	groupRoadsByConnectedType,
 	type Project,
 	type ProjectStage,
+	projectSourcingMode,
 } from 'ssh/project'
-import type { AlveolusType } from 'ssh/types/base'
+import type { GoodType } from 'ssh/types/base'
 
 css`
 .project-manager {
@@ -143,6 +149,55 @@ css`
 	font-size: 0.85rem;
 }
 
+.project-manager__bill-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+}
+
+.project-manager__sourcing {
+	display: inline-flex;
+	gap: 0.2rem;
+}
+
+.project-manager__sourcing button {
+	border: 1px solid var(--ak-border);
+	background: var(--ak-surface-panel);
+	color: var(--ak-text-muted);
+	border-radius: 999px;
+	padding: 0.1rem 0.45rem;
+	font-size: 0.72rem;
+	cursor: pointer;
+}
+
+.project-manager__sourcing button[data-selected='true'] {
+	color: var(--ak-text);
+	border-color: color-mix(in srgb, var(--ak-accent, #2563eb) 70%, var(--ak-border));
+	background: color-mix(in srgb, var(--ak-accent, #2563eb) 14%, var(--ak-surface-panel));
+}
+
+.project-manager__progress {
+	display: grid;
+	gap: 0.4rem;
+	font-size: 0.82rem;
+}
+
+.project-manager__progress-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.15rem 0.35rem;
+	border-radius: 0.25rem;
+}
+
+.project-manager__progress-state {
+	font-size: 0.72rem;
+	text-transform: capitalize;
+	color: var(--ak-text-muted);
+}
+
 .project-manager__tools {
 	display: flex;
 	flex-direction: column;
@@ -218,7 +273,16 @@ const projectFilters: { value: StageFilter; label: string }[] = [
 	{ value: 'archived', label: 'Archived' },
 ]
 
-const alveolusTypes = Object.keys(alveoliRules) as AlveolusType[]
+/** Build-tool roots (root alveoli) for the project editor's Alveoli group. */
+const buildToolbarRoots = getAppShellBuildToolbarRoots()
+/** Build-tool variant leaves (`build:<root>#<variant>`) for the project editor. */
+const buildVariantEntries = getAppShellVariantEntries()
+
+const SOURCING_MODES: { value: ProjectSourcingMode; label: string }[] = [
+	{ value: 'auto', label: 'auto' },
+	{ value: 'take', label: 'take' },
+	{ value: 'buy', label: 'buy' },
+]
 
 function uniqueProjectName(base: string): string {
 	const names = new Set(game.projects.projects.map((project) => project.name))
@@ -238,6 +302,7 @@ const ProjectManagerWidget = (props: { title?: string }) => {
 			hives: false,
 			alveoli: false,
 			roads: false,
+			bulldoze: false,
 		},
 	})
 
@@ -305,12 +370,18 @@ const ProjectManagerWidget = (props: { title?: string }) => {
 			return
 		}
 		projectEditingState.project = project
-		projectEditingState.tool = tool
 		projectEditingState.hivePlan = undefined
 		projectEditingState.rotation = 0
 		projectEditingState.mirror = false
+		interactionMode.selectedAction = tool
 		state.message = `Tool: ${tool || 'select'}`
 	}
+
+	/** `el` props marking a tool button as the currently-selected tool (radio look). */
+	const toolEl = (selected: boolean): JSX.IntrinsicElements['button'] => ({
+		'aria-pressed': selected ? 'true' : 'false',
+		'data-selected': selected ? 'true' : 'false',
+	})
 
 	const pickHive = (hivePlan: HivePlan) => {
 		const project = selectedProject()
@@ -319,8 +390,10 @@ const ProjectManagerWidget = (props: { title?: string }) => {
 			return
 		}
 		projectEditingState.project = project
-		projectEditingState.tool = 'hive'
 		projectEditingState.hivePlan = hivePlan
+		projectEditingState.rotation = 0
+		projectEditingState.mirror = false
+		interactionMode.selectedAction = 'hive'
 		state.message = `Stamping "${hivePlan.name}" — click the board to place (R/Q rotate, M mirror).`
 	}
 
@@ -359,6 +432,18 @@ const ProjectManagerWidget = (props: { title?: string }) => {
 			required: qty ?? 0,
 			delivered: delivered[good as keyof typeof delivered] ?? 0,
 		}))
+	}
+
+	const sourcingModeFor = (good: string) => projectSourcingMode(selectedProject(), good as GoodType)
+	const setSourcing = (good: string, mode: ProjectSourcingMode) => {
+		const project = selectedProject()
+		if (!project) return
+		game.projects.setSourcingMode(project, good as GoodType, mode)
+	}
+
+	const progress = () => {
+		const project = selectedProject()
+		return project && project.stage === 'working' ? game.projectProgress(project) : undefined
 	}
 
 	return (
@@ -470,14 +555,64 @@ const ProjectManagerWidget = (props: { title?: string }) => {
 						<div class="project-manager__bill">
 							<for each={billEntries()}>
 								{(entry) => (
-									<div>
-										{entry.good}: {entry.delivered} / {entry.required}
+									<div class="project-manager__bill-row">
+										<span>
+											{entry.good}: {entry.delivered} / {entry.required}
+										</span>
+										<div class="project-manager__sourcing">
+											<for each={SOURCING_MODES}>
+												{(mode) => (
+													<button
+														type="button"
+														disabled={selectedProject()?.stage === 'archived'}
+														data-selected={
+															sourcingModeFor(entry.good) === mode.value ? 'true' : 'false'
+														}
+														onClick={() => setSourcing(entry.good, mode.value)}
+													>
+														{mode.label}
+													</button>
+												)}
+											</for>
+										</div>
 									</div>
 								)}
 							</for>
 							<div if={billEntries().length === 0} class="project-manager__muted">
 								No bill yet.
 							</div>
+						</div>
+					</InspectorSection>
+
+					<InspectorSection title="Progress">
+						<div if={!progress()} class="project-manager__muted">
+							Committed projects show live progress here.
+						</div>
+						<div if={!!progress()} class="project-manager__progress">
+							<ConstructionProgressBar
+								applied={progress()?.completed ?? 0}
+								total={progress()?.total ?? 0}
+								label={`${Math.round(((progress()?.completed ?? 0) * 100) / Math.max(1, progress()?.total ?? 0))}% complete`}
+							/>
+							<div
+								if={Object.keys(progress()?.missingGoods ?? {}).length > 0}
+								class="project-manager__muted"
+							>
+								Missing:{' '}
+								{Object.entries(progress()?.missingGoods ?? {})
+									.map(([good, qty]) => `${good} × ${qty}`)
+									.join(', ')}
+							</div>
+							<for each={progress()?.items ?? []}>
+								{(item) => (
+									<div class="project-manager__progress-row">
+										<span>
+											{item.label} @ {item.coord[0]},{item.coord[1]}
+										</span>
+										<span class="project-manager__progress-state">{item.state}</span>
+									</div>
+								)}
+							</for>
 						</div>
 					</InspectorSection>
 
@@ -504,21 +639,39 @@ const ProjectManagerWidget = (props: { title?: string }) => {
 									</div>
 									<for each={game.hivePlans.plans}>
 										{(hivePlan) => (
-											<Button onClick={() => pickHive(hivePlan)}>{hivePlan.name}</Button>
+											<Button
+												el={toolEl(
+													interactionMode.selectedAction === 'hive' &&
+														projectEditingState.hivePlan === hivePlan
+												)}
+												onClick={() => pickHive(hivePlan)}
+											>
+												{hivePlan.name}
+											</Button>
 										)}
 									</for>
 								</div>
 								<div
-									if={projectEditingState.tool === 'hive'}
+									if={interactionMode.selectedAction === 'hive'}
 									class="project-manager__hive-controls"
 								>
-									<Button onClick={() => (projectEditingState.rotation = (projectEditingState.rotation + 5) % 6)}>
+									<Button
+										onClick={() =>
+											(projectEditingState.rotation = (projectEditingState.rotation + 5) % 6)
+										}
+									>
 										Rotate ↺
 									</Button>
-									<Button onClick={() => (projectEditingState.rotation = (projectEditingState.rotation + 1) % 6)}>
+									<Button
+										onClick={() =>
+											(projectEditingState.rotation = (projectEditingState.rotation + 1) % 6)
+										}
+									>
 										Rotate ↻
 									</Button>
-									<Button onClick={() => (projectEditingState.mirror = !projectEditingState.mirror)}>
+									<Button
+										onClick={() => (projectEditingState.mirror = !projectEditingState.mirror)}
+									>
 										Mirror
 									</Button>
 									<span>
@@ -537,13 +690,30 @@ const ProjectManagerWidget = (props: { title?: string }) => {
 									class="project-manager__tool-group-head"
 									onClick={() => (state.collapsed.alveoli = !state.collapsed.alveoli)}
 								>
-									<span>Alveoli ({alveolusTypes.length})</span>
+									<span>
+										Alveoli ({buildToolbarRoots.length} + {buildVariantEntries.length} variants)
+									</span>
 									<span class="chevron">▾</span>
 								</button>
 								<div class="project-manager__tool-group-body">
-									<for each={alveolusTypes}>
-										{(type) => (
-											<Button onClick={() => pickTool(`build:${type}`)}>Build {type}</Button>
+									<for each={buildToolbarRoots}>
+										{(root) => (
+											<Button
+												el={toolEl(interactionMode.selectedAction === root.value)}
+												onClick={() => pickTool(root.value)}
+											>
+												Build {root.label}
+											</Button>
+										)}
+									</for>
+									<for each={buildVariantEntries}>
+										{(variant) => (
+											<Button
+												el={toolEl(interactionMode.selectedAction === variant.value)}
+												onClick={() => pickTool(variant.value)}
+											>
+												{variant.label}
+											</Button>
 										)}
 									</for>
 								</div>
@@ -564,10 +734,36 @@ const ProjectManagerWidget = (props: { title?: string }) => {
 								<div class="project-manager__tool-group-body">
 									<for each={ROAD_TYPES}>
 										{(type) => (
-											<Button onClick={() => pickTool(`road:${type}`)}>Road {type}</Button>
+											<Button
+												el={toolEl(interactionMode.selectedAction === `road:${type}`)}
+												onClick={() => pickTool(`road:${type}`)}
+											>
+												Road {type}
+											</Button>
 										)}
 									</for>
-									<Button onClick={() => pickTool('bulldoze')}>Bulldoze</Button>
+								</div>
+							</div>
+
+							<div
+								class="project-manager__tool-group"
+								data-collapsed={state.collapsed.bulldoze ? 'true' : 'false'}
+							>
+								<button
+									type="button"
+									class="project-manager__tool-group-head"
+									onClick={() => (state.collapsed.bulldoze = !state.collapsed.bulldoze)}
+								>
+									<span>Actions</span>
+									<span class="chevron">▾</span>
+								</button>
+								<div class="project-manager__tool-group-body">
+									<Button
+										el={toolEl(interactionMode.selectedAction === 'bulldoze')}
+										onClick={() => pickTool('bulldoze')}
+									>
+										Bulldoze
+									</Button>
 								</div>
 							</div>
 						</div>

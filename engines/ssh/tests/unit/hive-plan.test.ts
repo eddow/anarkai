@@ -193,4 +193,20 @@ describe('hive plans (templates)', () => {
 			game.destroy()
 		}
 	})
+
+	it('parses a variant build action (`build:<type>#<variant>`)', () => {
+		const result = applyHivePlanToolAction([], 'build:pile#wood.extra', [0, 0])
+		expect(result.changed).toBe(true)
+		expect(result.entries[0]).toMatchObject({
+			alveolusType: 'pile',
+			variant: 'wood.extra',
+		})
+
+		// Replacing the same variant is a no-op; a different variant changes it.
+		const same = applyHivePlanToolAction(result.entries, 'build:pile#wood.extra', [0, 0])
+		expect(same.changed).toBe(false)
+		const changed = applyHivePlanToolAction(result.entries, 'build:pile#planks', [0, 0])
+		expect(changed.changed).toBe(true)
+		expect(changed.entries[0]).toMatchObject({ alveolusType: 'pile', variant: 'planks' })
+	})
 })

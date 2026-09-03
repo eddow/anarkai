@@ -1,7 +1,12 @@
 import { Container, Graphics, Point } from 'pixi.js'
-import { canBuildRoadThroughTile, type RoadType } from 'ssh/board/roads'
+import {
+	canBuildRoadAcrossBorder,
+	canBuildRoadThroughTile,
+	type RoadType,
+	roadBordersForTrace,
+} from 'ssh/board/roads'
 import type { Tile } from 'ssh/board/tile'
-import { toWorldCoord } from 'ssh/utils/position'
+import { toAxialCoord, toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
 import { scopedPixiName, setPixiName } from '../debug-names'
 import type { PixiGameRenderer } from '../renderer'
@@ -17,6 +22,10 @@ const ZONE_COLORS: Record<string, { fill: number; stroke: number }> = {
 	'': { fill: 0x44aaff, stroke: 0x2288dd }, // Blue (default/fallback)
 }
 const INVALID_ROAD_COLORS = { fill: 0xd95858, stroke: 0x9b1d24 }
+/** Unified "under construction" blue footprint (shared with building ghosts). */
+const CONSTRUCTION_BLUE = { fill: 0x44aaff, stroke: 0x2288dd }
+/** Whole-trace invalid filigree (pinkish-red). */
+const PINKISH = { fill: 0xff9a9a, stroke: 0xe0557a }
 
 function parseHexColor(color: string | undefined): number | undefined {
 	if (!color) return undefined
@@ -93,26 +102,44 @@ export class DragPreviewOverlay {
 	private showRoadPreview(tiles: Tile[], roadType: RoadType, valid: boolean) {
 		this.graphics.clear()
 		const style = roadMacroStyle(roadType)
-		const roadColors = { fill: style.color, stroke: style.color }
+
+		// Planned project alveoli block a road from crossing their tile.
+		const blockedKeys = new Set<string>()
+		for (const project of this.renderer.game.projects.projects) {
+			for (const entry of project.entries) blockedKeys.add(`${entry.coord[0]},${entry.coord[1]}`)
+		}
+
+		// Per-tile footprint: blue (valid) / pinkish (whole-trace invalid) / red (error).
 		for (const tile of tiles) {
-			const colors = canBuildRoadThroughTile(tile) ? roadColors : INVALID_ROAD_COLORS
+			const coord = toAxialCoord(tile.position)
+			const blocked = !canBuildRoadThroughTile(tile) || blockedKeys.has(`${coord.q},${coord.r}`)
+			const colors = blocked ? INVALID_ROAD_COLORS : valid ? CONSTRUCTION_BLUE : PINKISH
 			this.drawTileHighlight(tile, colors.fill, colors.stroke, 0.36, 0.9)
 		}
+
+		// Per-border segments: a river crossing turns only that segment red; the
+		// rest follow the trace validity (road color / pinkish).
+		const borders = roadBordersForTrace(tiles)
 		const points = tiles.map((tile) => toWorldCoord(tile.position)).filter(Boolean) as Array<{
 			x: number
 			y: number
 		}>
-		if (points.length < 2) return
-		this.graphics.moveTo(points[0]!.x, points[0]!.y)
-		const end = points[points.length - 1]!
-		this.graphics.lineTo(end.x, end.y)
-		this.graphics.stroke({
-			width: tileSize * 0.22,
-			color: valid ? roadColors.stroke : INVALID_ROAD_COLORS.stroke,
-			alpha: 0.95,
-			cap: 'round',
-			join: 'round',
-		})
+		for (let i = 0; i < borders.length; i++) {
+			const a = points[i]
+			const b = points[i + 1]
+			if (!a || !b) continue
+			const river = !canBuildRoadAcrossBorder(borders[i]!)
+			const color = river ? INVALID_ROAD_COLORS.stroke : valid ? style.color : PINKISH.stroke
+			this.graphics.moveTo(a.x, a.y)
+			this.graphics.lineTo(b.x, b.y)
+			this.graphics.stroke({
+				width: tileSize * 0.22,
+				color,
+				alpha: 0.95,
+				cap: 'round',
+				join: 'round',
+			})
+		}
 	}
 
 	private drawTileHighlight(

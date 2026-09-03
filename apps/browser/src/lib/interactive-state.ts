@@ -19,19 +19,24 @@ export const hivePlanPlacementState = reactive({
 })
 
 /**
- * Active project being edited on the board, plus the currently selected
- * authoring tool (`'build:<alveolusType>'`, `'road:<roadType>'`, `'hive'`
- * with a `hivePlan`, or `'bulldoze'`). Board clicks route here (Phase 5) to
- * add/remove project entries and roads, or stamp a hive-plan template.
+ * Active project being edited on the board. The **tool** lives in
+ * `interactionMode.selectedAction` (the single active-tool slot); this state
+ * holds only non-serializable context: which project is being edited, the hive
+ * template when the `'hive'` tool is active, and the rotate/mirror transforms.
  */
 export const projectEditingState = reactive({
 	project: undefined as Project | undefined,
-	tool: '' as string,
-	/** Set when `tool === 'hive'`: the template to stamp onto the board. */
+	/** Set when `selectedAction === 'hive'`: the template to stamp onto the board. */
 	hivePlan: undefined as HivePlan | undefined,
 	rotation: 0,
 	mirror: false,
 })
+
+/** Tool values that belong to project authoring (gated on {@link projectEditingState.project}). */
+export const PROJECT_TOOLS = ['hive', 'bulldoze'] as const
+export function isProjectTool(action: string): boolean {
+	return action === 'hive' || action === 'bulldoze' || action.startsWith('build:') || action.startsWith('road:')
+}
 
 /**
  * Board preview ghost: the currently previewed project (one radio per project in

@@ -50,13 +50,7 @@ vi.mock('engine-rules/visual-content', () => ({
 	},
 }))
 
-import type { AnarkaiPaletteToolbarItem } from '@app/ui/anarkai'
-import {
-	browserPaletteIdeConfig,
-	disposeBrowserPalette,
-	getBrowserPalette,
-	palettePanelBridge,
-} from './browser-palette'
+import { disposeBrowserPalette, getBrowserPalette, palettePanelBridge } from './browser-palette'
 
 describe('browser palette registry & palettePanelBridge', () => {
 	afterEach(() => {
@@ -166,7 +160,7 @@ describe('browser palette registry & palettePanelBridge', () => {
 		expect(bulldoze?.icon).toBeTruthy()
 	})
 
-	it('exposes build, zone, and road tools in the top toolbar', () => {
+	it('exposes select and zone tools in the top toolbar (build/road moved to the project editor)', () => {
 		const acceptedKeywords = defaultPalette.top
 			.flat(2)
 			.flatMap((entry) => entry.toolbar)
@@ -174,27 +168,9 @@ describe('browser palette registry & palettePanelBridge', () => {
 			.flatMap((entry) => entry.config.acceptedKeywords ?? [])
 
 		expect(acceptedKeywords).toContain('select')
-		expect(acceptedKeywords).toContain('build')
 		expect(acceptedKeywords).toContain('zone')
-		expect(acceptedKeywords).toContain('road')
-		expect(acceptedKeywords).not.toContain('path')
-	})
-
-	it('replaces the static build segment with generated building drawer items', () => {
-		const topItems = browserPaletteIdeConfig.top.flat(2).flatMap((entry) => entry.toolbar)
-		const pileDrawer = topItems.find(
-			(item) => item.editor === 'drawer' && item.config?.label === 'Pile'
-		) as (AnarkaiPaletteToolbarItem & { toolbar?: AnarkaiPaletteToolbarItem[] }) | undefined
-
-		expect(pileDrawer).toBeTruthy()
-		expect(pileDrawer?.toolbar?.some((item) => item.tool === 'selectedAction|build:pile')).toBe(
-			true
-		)
-		expect(
-			pileDrawer?.toolbar?.some(
-				(item) => item.editor === 'drawer' && item.config?.hint === 'Wood variants'
-			)
-		).toBe(true)
+		expect(acceptedKeywords).not.toContain('build')
+		expect(acceptedKeywords).not.toContain('road')
 	})
 
 	it('derives the speed tool max from gameTimeSpeedFactors length', () => {

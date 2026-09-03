@@ -33,6 +33,61 @@ export interface RoadSegment {
 	type: RoadType
 }
 
+/** A preview ghost for a road border during placement authoring. */
+export interface RoadPreviewEntry {
+	coord: readonly [number, number]
+	type: RoadType
+	/** Non-empty when this road border collides (river / water / blocked tile). */
+	blocked?: string
+}
+
+/**
+ * Recover the two endpoint tile coordinates of a road border from its midpoint
+ * coordinate. Border coords are `axial.linear([0.5, a], [0.5, b])` (the midpoint
+ * between two adjacent tile centers), so they carry half-integer axial parts.
+ * The parity of `2*q, 2*r` picks the perpendicular neighbour direction.
+ */
+export function roadBorderEndpointCoords(
+	coord: readonly [number, number]
+): [readonly [number, number], readonly [number, number]] {
+	const dq = Math.round(coord[0] * 2)
+	const dr = Math.round(coord[1] * 2)
+	const qOdd = dq % 2 !== 0
+	const rOdd = dr % 2 !== 0
+	const q = dq / 2
+	const r = dr / 2
+	if (qOdd && !rOdd) {
+		return [
+			[q - 0.5, r],
+			[q + 0.5, r],
+		]
+	}
+	if (!qOdd && rOdd) {
+		return [
+			[q, r - 0.5],
+			[q, r + 0.5],
+		]
+	}
+	// Both half-integer: diagonal border.
+	return [
+		[q - 0.5, r + 0.5],
+		[q + 0.5, r - 0.5],
+	]
+}
+
+/**
+ * The canonical **anchor tile** for a road border: the endpoint tile where road
+ * construction/ demolition goods are delivered and where the road engineer stands
+ * to work. Chosen deterministically (lexicographically-smaller endpoint) so every
+ * road engineer resolves the same border to the same tile — the build side and the
+ * demolition refund side are always the same, never split across both endpoints.
+ */
+export function roadBorderAnchorCoord(coord: readonly [number, number]): readonly [number, number] {
+	const [a, b] = roadBorderEndpointCoords(coord)
+	if (a[0] !== b[0]) return a[0] < b[0] ? a : b
+	return a[1] <= b[1] ? a : b
+}
+
 /** Return the straightest adjacent tile-coordinate trace between two tile centers. */
 export function straightRoadCoords(start: AxialCoord, end: AxialCoord): AxialCoord[] {
 	const distance = axial.distance(start, end)
@@ -112,10 +167,17 @@ export function canBuildRoadAcrossBorder(border: TileBorder): boolean {
 	return !borderHasRiver(border)
 }
 
-/** Whether a road trace may pass through this tile while being authored. */
-export function canBuildRoadThroughTile(tile: Tile): boolean {
+/**
+ * Whether a road trace may pass through this tile while being authored.
+ *
+ * `blocked` is an optional predicate for tiles that refuse a road even though
+ * their board content is empty — used by project authoring so a road cannot be
+ * planned on top of a planned alveolus.
+ */
+export function canBuildRoadThroughTile(tile: Tile, blocked?: (tile: Tile) => boolean): boolean {
 	if (!isRoadCompatibleTerrain(tile)) return false
 	if (tile.zone?.type === 'residential') return false
+	if (blocked?.(tile)) return false
 	const content = tile.content
 	if (!content) return true
 	if (content instanceof Alveolus && content.action.type === 'road-fret') return true
@@ -134,11 +196,16 @@ export function canBuildRoadThroughTile(tile: Tile): boolean {
  *
  * The highlighted tile trace is authoritative for build permission. Border conversion is only checked after
  * every tile has passed so invalid middle tiles cannot be bypassed by border ownership details.
+ *
+ * `blocked` is threaded through to {@link canBuildRoadThroughTile} for project-authored road collisions.
  */
-export function canBuildRoadOnTrace(trace: readonly Tile[]): boolean {
+export function canBuildRoadOnTrace(
+	trace: readonly Tile[],
+	blocked?: (tile: Tile) => boolean
+): boolean {
 	if (trace.length === 0) return false
 	for (const tile of trace) {
-		if (!canBuildRoadThroughTile(tile)) return false
+		if (!canBuildRoadThroughTile(tile, blocked)) return false
 	}
 	const borders = roadBordersForTrace(trace)
 	if (trace.length > 1 && borders.length !== trace.length - 1) return false

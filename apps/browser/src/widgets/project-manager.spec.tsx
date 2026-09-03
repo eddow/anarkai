@@ -19,7 +19,6 @@ const globals = vi.hoisted(() => ({
 	},
 	projectEditingState: {
 		project: undefined,
-		tool: '',
 		hivePlan: undefined,
 		rotation: 0,
 		mirror: false,
@@ -27,6 +26,9 @@ const globals = vi.hoisted(() => ({
 	projectPreviewState: {
 		project: undefined,
 		active: false,
+	},
+	interactionMode: {
+		selectedAction: '',
 	},
 }))
 
@@ -69,7 +71,10 @@ describe('ProjectManagerWidget', () => {
 	beforeEach(() => {
 		globals.game.projects = new ProjectCollection(globals.game as any)
 		globals.projectEditingState.project = undefined
-		globals.projectEditingState.tool = ''
+		globals.projectEditingState.hivePlan = undefined
+		globals.projectEditingState.rotation = 0
+		globals.projectEditingState.mirror = false
+		globals.interactionMode.selectedAction = ''
 		globals.projectPreviewState.project = undefined
 		globals.projectPreviewState.active = false
 		container = document.createElement('div')
@@ -111,10 +116,14 @@ describe('ProjectManagerWidget', () => {
 		// Force selection via the effect picking the first project.
 		expect(container.textContent).toContain('Draft project')
 
-		click([...container.querySelectorAll('button')].find((button) => button.textContent === 'Build storage'))
+		click(
+			[...container.querySelectorAll('button')].find(
+				(button) => button.textContent === 'Build Storage'
+			)
+		)
 
 		expect(globals.projectEditingState.project).toBe(project)
-		expect(globals.projectEditingState.tool).toBe('build:storage')
+		expect(globals.interactionMode.selectedAction).toBe('build:storage')
 	})
 
 	it('commits a draft project from the Commit button', () => {
@@ -125,7 +134,9 @@ describe('ProjectManagerWidget', () => {
 		globals.game.commitProject.mockReturnValue({ ok: true })
 		stop = latch(container, <ProjectManagerWidget />)
 
-		click([...container.querySelectorAll('button')].find((button) => button.textContent === 'Commit'))
+		click(
+			[...container.querySelectorAll('button')].find((button) => button.textContent === 'Commit')
+		)
 
 		expect(globals.game.commitProject).toHaveBeenCalled()
 	})
@@ -140,9 +151,13 @@ describe('ProjectManagerWidget', () => {
 		expect(container.textContent).toContain('Hives (1)')
 		expect(container.textContent).toContain('Wood Factory')
 
-		click([...container.querySelectorAll('button')].find((button) => button.textContent === 'Wood Factory'))
+		click(
+			[...container.querySelectorAll('button')].find(
+				(button) => button.textContent === 'Wood Factory'
+			)
+		)
 
-		expect(globals.projectEditingState.tool).toBe('hive')
+		expect(globals.interactionMode.selectedAction).toBe('hive')
 		expect(globals.projectEditingState.hivePlan).toBe(plan)
 	})
 

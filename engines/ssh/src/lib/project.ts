@@ -1,17 +1,20 @@
 import { reactive } from 'mutts'
-import type { RoadPatch, RoadType } from 'ssh/board/roads'
-import type { SourcingEntry } from 'ssh/commerce/commerce-model'
+import { type RoadPatch, type RoadType, roadBorderEndpointCoords } from 'ssh/board/roads'
+import type { ProjectSourcingMode, ProjectSourcingPolicy } from 'ssh/commerce/commerce-model'
 import type { Game } from 'ssh/game'
 import {
 	type HivePlan,
 	type HivePlanEntry,
 	type HivePlanStructuralIssue,
 	type HivePlanValidationProgress,
+	hivePlanCenterOffset,
 	hivePlanFingerprint,
 	hivePlanValidationRequirements,
+	mirrorHivePlanCoord,
 	rotateHivePlanCoord,
 	validateHivePlanStructure,
 } from 'ssh/hive-plan'
+import type { GoodType } from 'ssh/types/base'
 import type { AxialCoord } from 'ssh/utils/axial'
 
 export type ProjectStage = 'draft' | 'working' | 'archived'
@@ -36,13 +39,57 @@ export interface Project {
 	stage: ProjectStage
 	entries: ProjectEntry[]
 	roads: RoadPatch[]
-	sourcing: SourcingEntry[]
+	/** Tiles planned for demolition (existing board structures to remove on commit). */
+	demolitions: Array<readonly [number, number]>
+	/** Existing road segments (border midpoints) planned for demolition on commit. */
+	roadDemolitions: RoadPatch[]
+	/** Per-good sourcing policy (auto / take / buy), edited in the project detail. */
+	sourcing: ProjectSourcingPolicy
 	validationProgress: HivePlanValidationProgress
 	knownnessFingerprint: string
 	archiveReason?: ProjectArchiveReason
 }
 
 export interface SerializedProject extends Project {}
+
+/**
+ * The effective sourcing mode for a good on a project: the project's per-good
+ * override, or `'auto'` (internal-first, external fallback) when unset or the
+ * project is absent (spontaneous construction).
+ */
+export function projectSourcingMode(
+	project: Project | undefined,
+	good: GoodType
+): ProjectSourcingMode {
+	return project?.sourcing?.[good] ?? 'auto'
+}
+
+/** One live item in a project's construction progress (an alveolus entry or a road segment). */
+export interface ProjectProgressItem {
+	kind: 'alveolus' | 'road'
+	label: string
+	coord: readonly [number, number]
+	/** `pending` = not materialized yet, `building` = shell working, `done` = finished. */
+	state: 'pending' | 'building' | 'done'
+	/** Seconds of construction work applied (building items only). */
+	applied: number
+	/** Total construction work seconds (building items only). */
+	total: number
+	/** Goods still missing for this item (materials not yet delivered). */
+	remainingNeeds: Partial<Record<GoodType, number>>
+}
+
+/**
+ * Live, board-derived construction progress for a project (not the frozen plan).
+ * `completed`/`total` are the aggregate-bar numerator/denominator: `completed` is
+ * the number of finished items plus each building item's `applied/total` fraction.
+ */
+export interface ProjectProgress {
+	items: ProjectProgressItem[]
+	completed: number
+	total: number
+	missingGoods: Partial<Record<GoodType, number>>
+}
 
 /**
  * The project bill = the template bill over the project's **absolute** entries
@@ -82,15 +129,11 @@ export function validateProjectStructure(
 	return validateHivePlanStructure(game, entries)
 }
 
-/** Reflect across the q=r diagonal (one of the six axial reflections). */
-function mirrorCoord(coord: readonly [number, number]): readonly [number, number] {
-	return [coord[1], coord[0]]
-}
-
 /**
  * Stamp a hive-plan template into absolute project entries: optionally mirror,
- * rotate, then offset by `anchor`. The template's relative entries become
- * absolute board coordinates — the alveoli become part of the project.
+ * rotate, then offset by `anchor` (which is the plan's **centroid**, so the
+ * hovered tile becomes the plan's center). The template's relative entries
+ * become absolute board coordinates — the alveoli become part of the project.
  */
 export function stampHivePlanEntries(
 	hivePlan: HivePlan,
@@ -98,13 +141,14 @@ export function stampHivePlanEntries(
 	rotation: number,
 	mirror: boolean
 ): ProjectEntry[] {
+	const center = hivePlanCenterOffset(hivePlan.entries, rotation, mirror)
 	return hivePlan.entries.map((entry) => {
 		let coord: readonly [number, number] = [entry.coord[0], entry.coord[1]]
-		if (mirror) coord = mirrorCoord(coord)
+		if (mirror) coord = mirrorHivePlanCoord(coord)
 		const rotated = rotateHivePlanCoord(coord, rotation)
 		return {
 			...entry,
-			coord: [anchor.q + rotated.q, anchor.r + rotated.r] as const,
+			coord: [anchor.q + rotated.q - center.q, anchor.r + rotated.r - center.r] as const,
 		}
 	})
 }
@@ -119,38 +163,21 @@ function cloneRoads(roads: readonly RoadPatch[]): RoadPatch[] {
 	return roads.map((road) => ({ ...road }))
 }
 
+/** Shallow-clone demolition tile coords. */
+function cloneDemolitions(
+	demolitions: readonly (readonly [number, number])[]
+): Array<readonly [number, number]> {
+	return demolitions.map((coord) => [coord[0], coord[1]] as const)
+}
+
 /**
  * Recover the two endpoint tile coordinates of a road border from its midpoint
- * coordinate. Border coords are `axial.linear([0.5, a], [0.5, b])` (the midpoint
- * between two adjacent tile centers), so they carry half-integer axial parts.
- * The parity of `2*q, 2*r` picks the perpendicular neighbour direction.
+ * coordinate. Delegates to {@link roadBorderEndpointCoords}.
  */
 function roadBorderEndpointTiles(
 	coord: readonly [number, number]
 ): [readonly [number, number], readonly [number, number]] {
-	const dq = Math.round(coord[0] * 2)
-	const dr = Math.round(coord[1] * 2)
-	const qOdd = dq % 2 !== 0
-	const rOdd = dr % 2 !== 0
-	const q = dq / 2
-	const r = dr / 2
-	if (qOdd && !rOdd) {
-		return [
-			[q - 0.5, r],
-			[q + 0.5, r],
-		]
-	}
-	if (!qOdd && rOdd) {
-		return [
-			[q, r - 0.5],
-			[q, r + 0.5],
-		]
-	}
-	// Both half-integer: diagonal border.
-	return [
-		[q - 0.5, r + 0.5],
-		[q + 0.5, r - 0.5],
-	]
+	return roadBorderEndpointCoords(coord)
 }
 
 /** A display "road" = one connected component of the same road type. */
@@ -267,7 +294,9 @@ export class ProjectCollection {
 			stage: 'draft' as ProjectStage,
 			entries: cloneEntries(entries),
 			roads: [],
-			sourcing: [],
+			demolitions: [],
+			roadDemolitions: [],
+			sourcing: {},
 			validationProgress: projectValidationRequirements(entries, this.game.hivePlans.plans),
 			knownnessFingerprint: projectFingerprint(entries),
 		}) as Project
@@ -277,7 +306,14 @@ export class ProjectCollection {
 
 	updateDraft(
 		project: Project,
-		patch: { name?: string; entries?: readonly ProjectEntry[]; roads?: readonly RoadPatch[] }
+		patch: {
+			name?: string
+			entries?: readonly ProjectEntry[]
+			roads?: readonly RoadPatch[]
+			demolitions?: readonly (readonly [number, number])[]
+			roadDemolitions?: readonly RoadPatch[]
+			sourcing?: ProjectSourcingPolicy
+		}
 	): Project {
 		if (project.stage !== 'draft') throw new Error('Only draft projects can be edited')
 		const entries = patch.entries ? cloneEntries(patch.entries) : project.entries
@@ -286,6 +322,9 @@ export class ProjectCollection {
 		if (patch.name !== undefined) project.name = patch.name
 		if (patch.entries) project.entries = entries
 		if (patch.roads) project.roads = cloneRoads(patch.roads)
+		if (patch.demolitions) project.demolitions = cloneDemolitions(patch.demolitions)
+		if (patch.roadDemolitions) project.roadDemolitions = cloneRoads(patch.roadDemolitions)
+		if (patch.sourcing) project.sourcing = { ...patch.sourcing }
 		project.knownnessFingerprint = projectFingerprint(project.entries)
 		project.validationProgress = projectValidationRequirements(
 			project.entries,
@@ -326,12 +365,55 @@ export class ProjectCollection {
 		return true
 	}
 
+	/** Remove a completed tile demolition todo from a working project. */
+	removeDemolition(project: Project, coord: readonly [number, number]): boolean {
+		const key = `${coord[0]},${coord[1]}`
+		const next = project.demolitions.filter((dem) => `${dem[0]},${dem[1]}` !== key)
+		if (next.length === project.demolitions.length) return false
+		project.demolitions = next
+		this.game.invalidateWorkPlanning('project.demolition-done')
+		return true
+	}
+
+	/** Remove a completed road demolition todo from a working project. */
+	removeRoadDemolition(project: Project, coord: readonly [number, number]): boolean {
+		const key = `${coord[0]},${coord[1]}`
+		const next = project.roadDemolitions.filter(
+			(road) => `${road.coord[0]},${road.coord[1]}` !== key
+		)
+		if (next.length === project.roadDemolitions.length) return false
+		project.roadDemolitions = next
+		this.game.invalidateWorkPlanning('project.road-demolition-done')
+		return true
+	}
+
+	/** Remove a built road segment from a working project's pending build list. */
+	removeRoad(project: Project, coord: readonly [number, number]): boolean {
+		const key = `${coord[0]},${coord[1]}`
+		const next = project.roads.filter((road) => `${road.coord[0]},${road.coord[1]}` !== key)
+		if (next.length === project.roads.length) return false
+		project.roads = next
+		this.game.invalidateWorkPlanning('project.road-built')
+		return true
+	}
+
+	/**
+	 * Set a project's per-good sourcing mode. Editable in `draft` and `working`
+	 * (sourcing quotas stay tunable while a project runs); `archived` is frozen.
+	 */
+	setSourcingMode(project: Project, good: GoodType, mode: ProjectSourcingMode): void {
+		if (project.stage === 'archived') return
+		project.sourcing = { ...project.sourcing, [good]: mode }
+	}
+
 	serialize(): SerializedProject[] {
 		return this.projects.map((project) => ({
 			...project,
 			entries: project.entries.map((entry) => ({ ...entry })),
 			roads: project.roads.map((road) => ({ ...road })),
-			sourcing: project.sourcing.map((entry) => ({ ...entry })),
+			demolitions: project.demolitions.map((coord) => [coord[0], coord[1]] as const),
+			roadDemolitions: project.roadDemolitions.map((road) => ({ ...road })),
+			sourcing: { ...project.sourcing },
 			validationProgress: {
 				...project.validationProgress,
 				requiredGoods: { ...project.validationProgress.requiredGoods },
@@ -346,7 +428,9 @@ export class ProjectCollection {
 				...project,
 				entries: (project.entries ?? []).map((entry) => ({ ...entry })),
 				roads: (project.roads ?? []).map((road) => ({ ...road })),
-				sourcing: project.sourcing ?? [],
+				demolitions: (project.demolitions ?? []).map((coord) => [coord[0], coord[1]] as const),
+				roadDemolitions: (project.roadDemolitions ?? []).map((road) => ({ ...road })),
+				sourcing: { ...(project.sourcing ?? {}) },
 				knownnessFingerprint:
 					project.knownnessFingerprint || projectFingerprint(project.entries ?? []),
 				validationProgress: {

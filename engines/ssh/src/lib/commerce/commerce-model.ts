@@ -214,6 +214,20 @@ export interface SourcingEntry {
 
 export type ProjectSourcing = Partial<Record<GoodType, readonly SourcingEntry[]>>
 
+/**
+ * Authoring-time, per-good sourcing **policy** for a project: how each bill good
+ * should be acquired. This is the player-facing knob — the transport automation
+ * reads it to decide between the internal (self-haul) and external (buy) branches.
+ *
+ * - `'auto'` (default) — internal-first, external fallback (the internality slider).
+ * - `'take'`  — self-haul only (own hive → site); never bought externally.
+ * - `'buy'`   — outside delivery only (NPC settlement → site); never self-hauled.
+ */
+export type ProjectSourcingMode = 'auto' | 'take' | 'buy'
+
+/** Per-good sourcing policy override. Unset goods fall back to `'auto'`. */
+export type ProjectSourcingPolicy = Partial<Record<GoodType, ProjectSourcingMode>>
+
 // ── Wallet ───────────────────────────────────────────────────────────────────
 
 export interface Wallet {

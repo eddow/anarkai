@@ -64,7 +64,6 @@ const { MockForesterAlveolus, MockFreightBayAlveolus, MockStorageAlveolus, MockT
 			action = {
 				type: 'transform',
 				rates: { wood: -0.2, planks: 0.2 },
-				productRatio: { inputGood: 'wood', outputGood: 'planks', maxProductRatio: 0.5 },
 			}
 			transformConfiguration = reactive({
 				working: true,
@@ -472,6 +471,27 @@ describe('AlveolusProperties', () => {
 		expect(transform.transformConfiguration.productRatio.maxProductRatio).toBe(0.65)
 		expect(container.querySelector('[data-testid="transform-ratio-value"]')?.textContent).toBe(
 			'65%'
+		)
+	})
+
+	it('renders the product ratio row with no configured ratio (unlimited)', () => {
+		const transform = new MockTransformAlveolus()
+		transform.transformConfiguration.productRatio = undefined
+		stop = latch(
+			container,
+			<table>
+				<tbody>
+					<AlveolusProperties
+						content={transform as never}
+						game={{ freightLines: [], vehicles: [] } as never}
+					/>
+				</tbody>
+			</table>
+		)
+
+		expect(container.querySelector('[data-testid="row-Product ratio"]')).not.toBeNull()
+		expect(container.querySelector('[data-testid="transform-ratio-value"]')?.textContent).toBe(
+			'100%'
 		)
 	})
 

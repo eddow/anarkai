@@ -240,7 +240,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 		(transformRatioConfig()?.inputGood as GoodType | undefined) ?? transformInputGoods()[0]
 	const transformRatioOutputGood = () =>
 		(transformRatioConfig()?.outputGood as GoodType | undefined) ?? transformOutputGoods()[0]
-	const transformRatioValue = () => transformRatioConfig()?.maxProductRatio ?? 0
+	const transformRatioValue = () => transformRatioConfig()?.maxProductRatio ?? 1
 	const transformRatioPercent = () => Math.round(transformRatioValue() * 100)
 	const setTransformRatio = (patch: Partial<Ssh.TransformProductRatioConfiguration>) => {
 		const transform = state.transformContent
@@ -383,7 +383,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 			</PropertyGridRow>
 
 			<PropertyGridRow
-				if={state.isTransform && !!transformRatioConfig()}
+				if={state.isTransform}
 				label={String(T.alveolus.productRatio)}
 			>
 				<div class="alveolus-transform-ratio">

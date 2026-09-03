@@ -75,13 +75,27 @@ describe('transform process buffers', () => {
 		})
 	})
 
-	it('uses the rule default product ratio to pause input demand and transform work', async () => {
+	it('pauses input demand and transform work when the configured product ratio is reached', async () => {
 		await withSawmill({ wood: 1, planks: 1 }, ({ sawmill }) => {
+			sawmill.setProductRatioConfiguration({
+				inputGood: 'wood',
+				outputGood: 'planks',
+				maxProductRatio: 0.5,
+			})
 			expect(sawmill.isBelowProductRatioLimit).toBe(false)
 			expect(sawmill.canWork).toBe(false)
 			expect(sawmill.nextLoadGood).toBeUndefined()
 			expect(sawmill.canTake('wood', '2-use')).toBe(true)
 			expect(sawmill.workingGoodsRelations.wood?.advertisement).toBe('demand')
+		})
+	})
+
+	it('has no product ratio limit until configured', async () => {
+		await withSawmill({ wood: 1, planks: 1 }, ({ sawmill }) => {
+			expect(sawmill.isBelowProductRatioLimit).toBe(true)
+			expect(sawmill.canWork).toBe(true)
+			expect(sawmill.nextLoadGood).toBe('wood')
+			expect(sawmill.canTake('wood', '2-use')).toBe(true)
 		})
 	})
 
@@ -106,6 +120,12 @@ describe('transform process buffers', () => {
 			if (!(sawmill instanceof TransformAlveolus)) {
 				throw new Error(`expected sawmill, got ${sawmill?.constructor?.name ?? 'nothing'}`)
 			}
+
+			sawmill.setProductRatioConfiguration({
+				inputGood: 'wood',
+				outputGood: 'planks',
+				maxProductRatio: 0.5,
+			})
 
 			expect(sawmill.isBelowProductRatioLimit).toBe(false)
 			expect(sawmill.canWork).toBe(false)

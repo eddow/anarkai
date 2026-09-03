@@ -1,4 +1,4 @@
-import { waitForIncomingGoodsPollSeconds } from 'engine-rules'
+import { construction, waitForIncomingGoodsPollSeconds } from 'engine-rules'
 import { atomic } from 'mutts'
 import { isTileCoord } from 'ssh/board/board'
 import {
@@ -11,6 +11,14 @@ import {
 import type { LooseGood } from 'ssh/board/looseGoods'
 import { isConstructionSiteShell } from 'ssh/build-site'
 import { Commitment } from 'ssh/commitment'
+import { demolishRoadSegment, demolishStructure } from 'ssh/construction-demolition'
+import {
+	RoadConstructionSite,
+	roadAnchorTile,
+	roadBuildRecipe,
+	roadRefundGoods,
+	spawnRoadLooseGoods,
+} from 'ssh/construction-road'
 import {
 	applyConstructionConcreteTerrain,
 	constructionShellStepDescription,
@@ -1298,7 +1306,12 @@ class WorkFunctions {
 			tileQ: tileCoord?.q,
 			tileR: tileCoord?.r,
 			targetKind: target.kind,
-			target: target.kind === 'alveolus' ? target.alveolusType : target.tier,
+			target:
+				target.kind === 'alveolus'
+					? target.alveolusType
+					: target.kind === 'dwelling'
+						? target.tier
+						: undefined,
 		})
 		return new DurationStep(
 			constructionSite.foundationWorkSeconds,
@@ -1375,6 +1388,191 @@ class WorkFunctions {
 		})
 		return new DurationStep(0.5, 'idle', 'construction.re-plan', {
 			key: 'work.construction.wait',
+		})
+	}
+
+	/**
+	 * Demolish the structure on the character's current tile (a working project's
+	 * tile demolition todo). Refunds ~50% of construction materials as loose goods
+	 * and restores the tile to `UnBuiltLand`, then clears the todo.
+	 */
+	@contract()
+	demolishStep() {
+		const character = this[subject]
+		const tileCoord = toAxialCoord(character.tile.position)
+		const content = character.tile.content
+
+		const clearTodo = () => {
+			if (!tileCoord) return
+			for (const project of character.game.projects.workingProjects) {
+				character.game.projects.removeDemolition(project, [tileCoord.q, tileCoord.r])
+			}
+		}
+
+		if (!content || content instanceof UnBuiltLand) {
+			// Another engineer already demolished this tile while we walked here.
+			clearTodo()
+			traces.work.warn?.('work.demolishStep.skip', {
+				character: character.name,
+				characterUid: debugObjectId(character),
+				reason: 'already-demolished',
+				tileQ: tileCoord?.q,
+				tileR: tileCoord?.r,
+				contentType: content?.constructor?.name,
+			})
+			return new DurationStep(0.5, 'idle', 'demolish.re-plan', {
+				key: 'work.demolish.wait',
+			})
+		}
+
+		traces.work.log?.('work.demolishStep.start', {
+			character: character.name,
+			characterUid: debugObjectId(character),
+			tileQ: tileCoord?.q,
+			tileR: tileCoord?.r,
+			contentType: content.constructor?.name,
+		})
+		return new DurationStep(construction.demolition.structureTime, 'work', 'demolish').onFulfilled(
+			() => {
+				demolishStructure(character.tile)
+				clearTodo()
+				// A deferred entry on this tile (bulldoze → … → construction) can now build.
+				if (tileCoord) character.game.materializeDeferredEntriesAt(tileCoord)
+			}
+		)
+	}
+
+	/**
+	 * Demolish a single road segment (border midpoint) from a working project's
+	 * road demolition todo. The engineer stands on the border's **anchor tile**
+	 * (the same tile used for building), works there, removes the segment, and
+	 * refunds ~50% of its construction goods as loose goods on that tile.
+	 */
+	@contract()
+	demolishRoadStep() {
+		const character = this[subject]
+		const job = character.assignedAlveolus?.getJob(character)
+
+		const bail = () =>
+			new DurationStep(0.5, 'idle', 'demolishRoad.re-plan', {
+				key: 'work.demolishRoad.wait',
+			})
+
+		if (job?.job !== 'demolishRoad') {
+			traces.work.warn?.('work.demolishRoadStep.skip', {
+				character: character.name,
+				characterUid: debugObjectId(character),
+				reason: 'not-demolish-road',
+			})
+			return bail()
+		}
+
+		const coord = job.coord
+		const roadType = character.game.hex.getRoadType({ q: coord[0], r: coord[1] })
+		const anchor = roadAnchorTile(character.game, coord)
+		if (!roadType) {
+			// Segment already gone — clear the todo and re-plan.
+			character.game.projects.removeRoadDemolition(job.project, coord)
+			traces.work.warn?.('work.demolishRoadStep.skip', {
+				character: character.name,
+				characterUid: debugObjectId(character),
+				reason: 'road-already-demolished',
+				coordQ: coord[0],
+				coordR: coord[1],
+			})
+			return bail()
+		}
+
+		traces.work.log?.('work.demolishRoadStep.start', {
+			character: character.name,
+			characterUid: debugObjectId(character),
+			coordQ: coord[0],
+			coordR: coord[1],
+		})
+		return new DurationStep(construction.demolition.roadTime, 'work', 'demolishRoad').onFulfilled(
+			() => {
+				demolishRoadSegment(character.game, coord)
+				// Refund loose goods on the anchor tile (recoverable/re-usable by the economy).
+				if (anchor) {
+					spawnRoadLooseGoods(
+						anchor,
+						roadRefundGoods(roadType, () => character.game.random())
+					)
+				}
+				character.game.projects.removeRoadDemolition(job.project, coord)
+			}
+		)
+	}
+
+	/**
+	 * Build a single road segment (border midpoint) from a working project's
+	 * pending `roads` list. The engineer stands on the border's **anchor tile**
+	 * (which hosts the {@link RoadConstructionSite}), works, and finalizes the site —
+	 * consuming its delivered goods and placing the segment.
+	 */
+	@contract()
+	buildRoadStep() {
+		const character = this[subject]
+		const job = character.assignedAlveolus?.getJob(character)
+
+		const bail = () =>
+			new DurationStep(0.5, 'idle', 'buildRoad.re-plan', {
+				key: 'work.buildRoad.wait',
+			})
+
+		if (job?.job !== 'buildRoad') {
+			traces.work.warn?.('work.buildRoadStep.skip', {
+				character: character.name,
+				characterUid: debugObjectId(character),
+				reason: 'not-build-road',
+			})
+			return bail()
+		}
+
+		const coord = job.coord
+		const anchor = roadAnchorTile(character.game, coord)
+		const site = anchor?.content
+		if (
+			!(site instanceof RoadConstructionSite) ||
+			site.coord[0] !== coord[0] ||
+			site.coord[1] !== coord[1]
+		) {
+			// Site not materialized yet, or already built (another engineer raced us).
+			if (character.game.hex.getRoadType({ q: coord[0], r: coord[1] })) {
+				character.game.projects.removeRoad(job.project, coord)
+			}
+			traces.work.warn?.('work.buildRoadStep.skip', {
+				character: character.name,
+				characterUid: debugObjectId(character),
+				reason: 'road-site-missing',
+				coordQ: coord[0],
+				coordR: coord[1],
+			})
+			return bail()
+		}
+		if (!site.isReady) {
+			// Materials not yet complete — wait for the economy to deliver them.
+			traces.work.warn?.('work.buildRoadStep.skip', {
+				character: character.name,
+				characterUid: debugObjectId(character),
+				reason: 'road-goods-missing',
+				coordQ: coord[0],
+				coordR: coord[1],
+			})
+			return bail()
+		}
+
+		const recipe = roadBuildRecipe(job.roadType)
+		traces.work.log?.('work.buildRoadStep.start', {
+			character: character.name,
+			characterUid: debugObjectId(character),
+			coordQ: coord[0],
+			coordR: coord[1],
+			roadType: job.roadType,
+		})
+		return new DurationStep(recipe.time, 'work', 'buildRoad').onFulfilled(() => {
+			site.finalize()
+			character.game.projects.removeRoad(job.project, coord)
 		})
 	}
 }

@@ -84,7 +84,12 @@ export class UnBuiltLand extends TileContent {
 			tileR: coord?.r,
 			zone: this.tile.zone,
 			targetKind: target?.kind,
-			target: target?.kind === 'alveolus' ? target.alveolusType : target?.tier,
+			target:
+				target?.kind === 'alveolus'
+					? target.alveolusType
+					: target?.kind === 'dwelling'
+						? target.tier
+						: undefined,
 			phase: this.constructionSite?.phase,
 			burdened: this.tile.isBurdened,
 			looseGoods: this.tile.looseGoods.length,

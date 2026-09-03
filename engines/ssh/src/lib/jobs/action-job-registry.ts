@@ -5,12 +5,22 @@ import {
 	hasMaturePlantedTree,
 	UnBuiltLand,
 } from 'ssh/board/content/unbuilt-land'
+import { roadBorderAnchorCoord } from 'ssh/board/roads'
 import { isConstructionSiteShell } from 'ssh/build-site'
+import { RoadConstructionSite } from 'ssh/construction-road'
 import {
 	foundationGoodsComplete,
 	setConstructionFoundationDeliveredGoods,
 } from 'ssh/construction-state'
-import type { ConstructJob, FoundationJob, Job } from 'ssh/types/base'
+import type { Project } from 'ssh/project'
+import type {
+	BuildRoadJob,
+	ConstructJob,
+	DemolishJob,
+	DemolishRoadJob,
+	FoundationJob,
+	Job,
+} from 'ssh/types/base'
 import { type AxialCoord, axial } from 'ssh/utils'
 import { axialDistance, type Positioned, toAxialCoord } from 'ssh/utils/position'
 import { maxWalkTime } from '../../../assets/constants'
@@ -371,9 +381,9 @@ registerActionJobProvider('engineer', (alveolus) => {
 	 * Which jobs this variant enables.
 	 * Root engineer (no spec) enables all jobs for backward compatibility.
 	 * Variant specs filter the set:
-	 *   building → construct + foundation
+	 *   building → construct + foundation + demolish (structure demolition)
 	 *   research → (none yet — research/validation deferred, see plans/projects.md)
-	 *   road     → (none yet, future)
+	 *   road     → buildRoad + demolishRoad (road segment build/demolition)
 	 */
 	const allowedJobs = (() => {
 		const jobs = new Set<string>()
@@ -386,36 +396,102 @@ registerActionJobProvider('engineer', (alveolus) => {
 			case 'construct-foundation':
 				jobs.add('construct')
 				jobs.add('foundation')
+				jobs.add('demolish')
 				break
 			case 'research':
 				// Research/validation jobs are deferred (study/science); no jobs yet.
 				break
 			case 'road':
-				// Road jobs are not yet implemented; future
+				jobs.add('buildRoad')
+				jobs.add('demolishRoad')
 				break
 		}
 		return jobs
 	})()
 
-	const collectTargets = () => {
-		if (allowedJobs.size === 0)
-			return [] as { tile: any; job: ConstructJob | FoundationJob }[]
+	/**
+	 * Working projects' demolition todos, keyed by `"q,r"`. Tile demolitions use
+	 * integer coords; road demolitions use border midpoints (half-integer coords).
+	 */
+	const collectDemolitions = () => {
+		const demolitions = new Map<string, { project: Project; coord: readonly [number, number] }>()
+		const roadDemolitions = new Map<
+			string,
+			{ project: Project; coord: readonly [number, number] }
+		>()
+		for (const project of alveolus.tile.game.projects.workingProjects) {
+			for (const coord of project.demolitions) {
+				demolitions.set(`${coord[0]},${coord[1]}`, { project, coord })
+			}
+			for (const road of project.roadDemolitions) {
+				roadDemolitions.set(`${road.coord[0]},${road.coord[1]}`, {
+					project,
+					coord: road.coord,
+				})
+			}
+		}
+		return { demolitions, roadDemolitions }
+	}
+
+	/** Working projects' pending road builds, keyed by border midpoint. */
+	const collectRoadBuilds = () => {
+		const roadBuilds = new Map<
+			string,
+			{ project: Project; coord: readonly [number, number]; roadType: BuildRoadJob['roadType'] }
+		>()
+		for (const project of alveolus.tile.game.projects.workingProjects) {
+			for (const road of project.roads) {
+				roadBuilds.set(`${road.coord[0]},${road.coord[1]}`, {
+					project,
+					coord: road.coord,
+					roadType: road.type,
+				})
+			}
+		}
+		return roadBuilds
+	}
+
+	type EngJob = ConstructJob | FoundationJob | DemolishJob | DemolishRoadJob | BuildRoadJob
+	type EngTarget = { tile: any; job: EngJob }
+
+	const collectTargets = (): EngTarget[] => {
+		if (allowedJobs.size === 0) return []
 
 		const hex = alveolus.tile.game.hex
 		const origin = toAxialCoord(alveolus.tile.position)
-		if (!origin)
-			return [] as { tile: any; job: ConstructJob | FoundationJob }[]
+		if (!origin) return []
 
-		type EngTarget = {
-			tile: any
-			job: ConstructJob | FoundationJob
-		}
 		const targets: EngTarget[] = []
+		const { demolitions, roadDemolitions } = collectDemolitions()
+		const roadBuilds = collectRoadBuilds()
+		const wantsDemolishRoad = allowedJobs.has('demolishRoad') && roadDemolitions.size > 0
+		const wantsBuildRoad = allowedJobs.has('buildRoad') && roadBuilds.size > 0
 
 		for (const tile of hex.tilesAround(origin, action.radius)) {
 			const coord = toAxialCoord(tile.position)
 			if (!coord || axial.distance(origin, coord as AxialCoord) > action.radius) continue
 			const content = tile.content
+
+			if (
+				allowedJobs.has('demolish') &&
+				demolitions.has(`${coord.q},${coord.r}`) &&
+				content &&
+				!(content instanceof UnBuiltLand)
+			) {
+				const target = demolitions.get(`${coord.q},${coord.r}`)!
+				targets.push({
+					tile,
+					job: {
+						job: 'demolish' as const,
+						urgency: jobBalance.engineer.demolish,
+						fatigue: alveolus.getFatigueCost(),
+						project: target.project,
+						coord: target.coord,
+					},
+				})
+				continue
+			}
+
 			if (allowedJobs.has('construct') && content && isUndestroyedReadyConstructionSite(content)) {
 				targets.push({
 					tile,
@@ -456,9 +532,60 @@ registerActionJobProvider('engineer', (alveolus) => {
 			}
 		}
 
+		// Road demolitions are border-based (not tile-based): propose one per border,
+		// anchored to the canonical endpoint tile where the engineer works (and where
+		// the refund loose goods spawn).
+		if (wantsDemolishRoad) {
+			for (const target of roadDemolitions.values()) {
+				const anchor = roadBorderAnchorCoord(target.coord)
+				const tile = hex.getTile({ q: anchor[0], r: anchor[1] })
+				const coord = tile ? toAxialCoord(tile.position) : undefined
+				if (!tile || !coord || axial.distance(origin, coord as AxialCoord) > action.radius) continue
+				targets.push({
+					tile,
+					job: {
+						job: 'demolishRoad' as const,
+						urgency: jobBalance.engineer.demolishRoad,
+						fatigue: alveolus.getFatigueCost(),
+						project: target.project,
+						coord: target.coord,
+					},
+				})
+			}
+		}
+
+		// Road builds: propose one per pending segment whose anchor tile hosts a
+		// materialized {@link RoadConstructionSite} that is ready (materials complete).
+		if (wantsBuildRoad) {
+			for (const target of roadBuilds.values()) {
+				const anchor = roadBorderAnchorCoord(target.coord)
+				const tile = hex.getTile({ q: anchor[0], r: anchor[1] })
+				const coord = tile ? toAxialCoord(tile.position) : undefined
+				if (!tile || !coord || axial.distance(origin, coord as AxialCoord) > action.radius) continue
+				const site = tile.content
+				if (!(site instanceof RoadConstructionSite)) continue
+				if (!site.isReady) continue
+				targets.push({
+					tile,
+					job: {
+						job: 'buildRoad' as const,
+						urgency: jobBalance.engineer.buildRoad,
+						fatigue: alveolus.getFatigueCost(),
+						project: target.project,
+						coord: target.coord,
+						roadType: target.roadType,
+					},
+				})
+			}
+		}
+
 		return targets.sort((a, b) => {
-			const priority = (job: any) =>
-				job.job === 'construct' ? 0 : job.job === 'foundation' ? 1 : 2
+			const priority = (job: EngJob) =>
+				job.job === 'demolish' || job.job === 'demolishRoad'
+					? 0
+					: job.job === 'buildRoad' || job.job === 'construct'
+						? 1
+						: 2
 			const priorityDiff = priority(a.job) - priority(b.job)
 			if (priorityDiff !== 0) return priorityDiff
 			const ac = toAxialCoord(a.tile.position)!
@@ -488,8 +615,13 @@ registerActionJobProvider('engineer', (alveolus) => {
 			const startPos = toAxialCoord(character.position)
 			if (!startPos) return undefined
 
-			const priority = (job: any) => (job.job === 'construct' ? 0 : 1)
-			let best: ((typeof targets)[number] & { path: any[] }) | undefined
+			const priority = (job: EngJob) =>
+				job.job === 'demolish' || job.job === 'demolishRoad'
+					? 0
+					: job.job === 'buildRoad' || job.job === 'construct'
+						? 1
+						: 2
+			let best: (EngTarget & { path: any[] }) | undefined
 			for (const target of targets) {
 				const path = character.game.hex.findPathForCharacter(
 					startPos,

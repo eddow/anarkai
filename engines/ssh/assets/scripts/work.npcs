@@ -130,6 +130,45 @@ function foundation(jobPlan)
 	end if
 end function
 
+function demolish(jobPlan)
+	if not reachTargetTileLoop(jobPlan) then return false
+	assignAlveolus jobPlan
+	work.prepare jobPlan
+	engineer = jobPlan.target
+	nextJob = work.myNextJob jobPlan
+	if nextJob then
+		work.walkToCurrentJobTarget jobPlan
+		walk.enter
+		work.demolishStep
+	end if
+end function
+
+function demolishRoad(jobPlan)
+	if not reachTargetTileLoop(jobPlan) then return false
+	assignAlveolus jobPlan
+	work.prepare jobPlan
+	engineer = jobPlan.target
+	nextJob = work.myNextJob jobPlan
+	if nextJob then
+		work.walkToCurrentJobTarget jobPlan
+		walk.enter
+		work.demolishRoadStep
+	end if
+end function
+
+function buildRoad(jobPlan)
+	if not reachTargetTileLoop(jobPlan) then return false
+	assignAlveolus jobPlan
+	work.prepare jobPlan
+	engineer = jobPlan.target
+	nextJob = work.myNextJob jobPlan
+	if nextJob then
+		work.walkToCurrentJobTarget jobPlan
+		walk.enter
+		work.buildRoadStep
+	end if
+end function
+
 function defragment(jobPlan)
 	if not reachTargetTileLoop(jobPlan) then return false
 	assignAlveolus jobPlan
@@ -140,4 +179,4 @@ function defragment(jobPlan)
 	loop
 end function
 
-return { goWork, harvest, transform, convey, construct, forester, foundation, defragment }
+return { goWork, harvest, transform, convey, construct, forester, foundation, demolish, demolishRoad, buildRoad, defragment }

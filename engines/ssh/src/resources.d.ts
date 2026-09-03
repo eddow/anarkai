@@ -27,7 +27,6 @@ declare namespace Ssh {
 	interface TransformationAction {
 		type: 'transform'
 		rates: Record<string, number>
-		productRatio?: TransformProductRatioConfiguration
 	}
 	interface EngineerAction {
 		type: 'engineer'

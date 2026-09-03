@@ -5,6 +5,7 @@ import {
 	game,
 	hivePlanPlacementState,
 	interactionMode,
+	isProjectTool,
 	mrg,
 	projectEditingState,
 	projectPreviewState,
@@ -14,12 +15,14 @@ import {
 import { consumePresentationEvents } from '@app/lib/presentation-events'
 import type { DockviewWidgetProps, DockviewWidgetScope } from '@sursaut/ui/dockview'
 import { PixiGameRenderer } from 'engine-pixi/renderer'
+import type { PlacementPreviewEntry } from 'engine-pixi/renderers/placement-preview-overlay'
 import { effect } from 'mutts'
-import { roadBordersForTrace, type RoadType } from 'ssh/board/roads'
+import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import { canBuildRoadAcrossBorder, type RoadType, roadBordersForTrace } from 'ssh/board/roads'
 import { Tile } from 'ssh/board/tile'
 import { traces } from 'ssh/dev/debug'
 import type { GamePresentationEvent, InteractiveGameObject } from 'ssh/game'
-import { applyHivePlanToolAction, hivePlanCoordKey } from 'ssh/hive-plan'
+import { applyHivePlanToolAction, hivePlanCoordKey, hivePlanNeighborOffsets } from 'ssh/hive-plan'
 import { stampHivePlanEntries } from 'ssh/project'
 import type { AlveolusType } from 'ssh/types/base'
 import { toAxialCoord } from 'ssh/utils/position'
@@ -110,17 +113,144 @@ export default function GameWidget(
 	}
 
 	/**
-	 * Apply a project-editing tool to a clicked tile: stamp a hive-plan template,
-	 * add/replace/remove an alveolus entry (absolute coords), on the active draft.
+	 * Whether a placed alveolus at `coord` collides with the board or a planned
+	 * entry. Everything collides with what already exists on the board and what
+	 * has already been planned (any project's entries) — except tiles marked for
+	 * demolition in the active project (which are available for construction).
+	 * Returns a reason string, or `undefined` when the tile is clear.
+	 *
+	 * Collisions: missing tile, river channel, water terrain, an existing
+	 * alveolus / dwelling / construction shell / shop (`canInteract(build:)`
+	 * false), and a planned entry in any project. Deposits / loose goods do NOT
+	 * block (they need clearing at commit).
 	 */
-	const handleProjectEditClick = (object: InteractiveGameObject): boolean => {
+	const entryBlocked = (
+		coord: { q: number; r: number },
+		alveolusType: AlveolusType
+	): string | undefined => {
+		const tile = game.hex.getTile(coord)
+		if (!tile) return 'missing tile'
+
 		const project = projectEditingState.project
-		const tool = projectEditingState.tool
+		const key = hivePlanCoordKey(coord)
+
+		// A tile planned for demolition in this plan is available for construction.
+		if (project?.demolitions.some((dem) => hivePlanCoordKey(dem) === key)) {
+			return undefined
+		}
+
+		// Board collision: river / water / existing structure.
+		if (tile.hydrology?.isChannel) return 'river'
+		const terrain =
+			tile.content instanceof UnBuiltLand
+				? tile.content.terrain
+				: (tile.terrainState?.terrain ?? tile.baseTerrain)
+		if (terrain === 'water') return 'water'
+		if (!tile.canInteract(`build:${alveolusType}`)) return 'blocked'
+
+		// Planned entries in ANY project collide (standardized).
+		for (const other of game.projects.projects) {
+			if (other.entries.some((entry) => hivePlanCoordKey(entry.coord) === key)) {
+				return 'planned'
+			}
+		}
+		return undefined
+	}
+
+	/**
+	 * Whether a tile needs a demolition: only existing **structures** (alveolus,
+	 * dwelling, construction shell, shop) are marked "bulldozed". `UnBuiltLand`
+	 * (empty, with a deposit, or with a pending `site`) and zones are NOT marked —
+	 * tiles with resources/loose goods are "cleaned" by the existing clearing flow
+	 * at commit/construction time, not demolished.
+	 */
+	const tileNeedsDemolition = (tile: Tile): boolean => {
+		const content = tile.content
+		if (!content) return false
+		return !(content instanceof UnBuiltLand)
+	}
+
+	/**
+	 * Bulldoze a set of tiles in the active draft: remove any planned entries and
+	 * adjacent planned roads, mark tiles with existing **structures** as demolition
+	 * todos, and mark existing **board roads** on those tiles' borders as road
+	 * demolition todos ("bulldozing a tile = destroying all segments on its borders").
+	 */
+	const bulldozeTiles = (tiles: Tile[]): boolean => {
+		const project = projectEditingState.project
+		if (!project || project.stage !== 'draft') return false
+
+		const coordKeys = new Set(
+			tiles.map((tile) => {
+				const c = toAxialCoord(tile.position)
+				return `${c.q},${c.r}`
+			})
+		)
+
+		const entries = project.entries.filter((entry) => !coordKeys.has(hivePlanCoordKey(entry.coord)))
+
+		// Border coords of every selected tile (6 neighbours each).
+		const borderCoordSet = new Set<string>()
+		for (const tile of tiles) {
+			const c = toAxialCoord(tile.position)
+			for (const offset of hivePlanNeighborOffsets) {
+				// Border midpoint between (q,r) and (q+oq, r+or).
+				borderCoordSet.add(`${c.q + offset.q / 2},${c.r + offset.r / 2}`)
+			}
+		}
+		const roadKey = (coord: readonly [number, number]) => `${coord[0]},${coord[1]}`
+		const roads = project.roads.filter((road) => !borderCoordSet.has(roadKey(road.coord)))
+
+		// Tile demolitions: existing structures only.
+		const demolitionKeys = new Set(project.demolitions.map((dem) => hivePlanCoordKey(dem)))
+		for (const tile of tiles) {
+			if (tileNeedsDemolition(tile)) {
+				const c = toAxialCoord(tile.position)
+				demolitionKeys.add(`${c.q},${c.r}`)
+			}
+		}
+		const demolitions = [...demolitionKeys].map((key) => {
+			const [q, r] = key.split(',').map(Number)
+			return [q, r] as const
+		})
+
+		// Road demolitions: existing board roads on those borders.
+		const roadDemolitionKeys = new Set(
+			project.roadDemolitions.map((road) => `${road.coord[0]},${road.coord[1]}`)
+		)
+		for (const key of borderCoordSet) {
+			const [q, r] = key.split(',').map(Number)
+			if (game.hex.getRoadType({ q, r })) roadDemolitionKeys.add(key)
+		}
+		const roadDemolitions = [...roadDemolitionKeys].map((key) => {
+			const [q, r] = key.split(',').map(Number)
+			return { coord: [q, r] as const, type: game.hex.getRoadType({ q, r })! }
+		})
+
+		const changed =
+			entries.length !== project.entries.length ||
+			roads.length !== project.roads.length ||
+			demolitions.length !== project.demolitions.length ||
+			roadDemolitions.length !== project.roadDemolitions.length
+		if (changed) {
+			game.projects.updateDraft(project, { entries, roads, demolitions, roadDemolitions })
+		}
+		return true
+	}
+
+	/**
+	 * Apply a project-editing tool to a clicked tile: stamp a hive-plan template,
+	 * add/replace/remove an alveolus entry (absolute coords), or bulldoze, on the
+	 * active draft. The tool is read from the single `interactionMode.selectedAction`
+	 * slot. Collisions refuse the placement.
+	 */
+	const handleProjectEditClick = (object: InteractiveGameObject, action: string): boolean => {
+		const project = projectEditingState.project
 		if (!project || project.stage !== 'draft' || !(object instanceof Tile)) return false
 		const coord = toAxialCoord(object.position)
 		if (!coord) return false
 
-		if (tool === 'hive') {
+		if (action === 'hive') {
 			const plan = projectEditingState.hivePlan
 			if (!plan) return false
 			const stamped = stampHivePlanEntries(
@@ -129,15 +259,28 @@ export default function GameWidget(
 				projectEditingState.rotation,
 				projectEditingState.mirror
 			)
-			// Merge by absolute coord: a stamped alveolus replaces any existing entry there.
-			const byCoord = new Map(project.entries.map((entry) => [hivePlanCoordKey(entry.coord), entry]))
-			for (const entry of stamped) byCoord.set(hivePlanCoordKey(entry.coord), entry)
-			game.projects.updateDraft(project, { entries: [...byCoord.values()] })
+			// Whole-hive placement: any collision invalidates the entire stamp.
+			if (
+				stamped.some((entry) =>
+					entryBlocked({ q: entry.coord[0], r: entry.coord[1] }, entry.alveolusType)
+				)
+			) {
+				return false
+			}
+			game.projects.updateDraft(project, { entries: [...project.entries, ...stamped] })
 			return true
 		}
 
-		if (!tool.startsWith('build:') && tool !== 'bulldoze') return false
-		const next = applyHivePlanToolAction(project.entries, tool, coord)
+		if (action === 'bulldoze') {
+			return bulldozeTiles([object as Tile])
+		}
+
+		if (!action.startsWith('build:')) return false
+		const raw = action.slice('build:'.length)
+		const hashIdx = raw.indexOf('#')
+		const alveolusType = (hashIdx >= 0 ? raw.slice(0, hashIdx) : raw) as AlveolusType
+		if (entryBlocked(coord, alveolusType)) return false
+		const next = applyHivePlanToolAction(project.entries, action, coord)
 		if (!next.changed) return true
 		game.projects.updateDraft(project, { entries: next.entries })
 		return true
@@ -149,18 +292,36 @@ export default function GameWidget(
 	 */
 	const handleProjectRoadDrag = (tiles: Tile[], roadType: RoadType): boolean => {
 		const project = projectEditingState.project
-		const tool = projectEditingState.tool
-		if (!project || project.stage !== 'draft' || tool !== `road:${roadType}`) return false
+		if (!project || project.stage !== 'draft') return false
+		if (interactionMode.selectedAction !== `road:${roadType}`) return false
 
 		const borders = roadBordersForTrace(tiles)
 		if (borders.length === 0) return false
+
+		// Refuse any border that can't be built (river / water / blocked).
+		for (const border of borders) {
+			if (!canBuildRoadAcrossBorder(border)) return false
+		}
+
+		// Refuse roads that overlap a planned alveolus (any project's entry).
+		const planned = new Set<string>()
+		for (const other of game.projects.projects) {
+			for (const entry of other.entries) planned.add(hivePlanCoordKey(entry.coord))
+		}
+		for (const tile of tiles) {
+			const coord = toAxialCoord(tile.position)
+			if (planned.has(hivePlanCoordKey(coord))) return false
+		}
+
 		const additions = borders
 			.map((border) => toAxialCoord(border.position))
 			.filter((coord): coord is { q: number; r: number } => !!coord)
 			.map((coord) => ({ coord: [coord.q, coord.r] as const, type: roadType }))
 
 		// Dedup against existing road patches (same coord + type).
-		const existing = new Set(project.roads.map((road) => `${road.coord[0]},${road.coord[1]}:${road.type}`))
+		const existing = new Set(
+			project.roads.map((road) => `${road.coord[0]},${road.coord[1]}:${road.type}`)
+		)
 		const merged = [...project.roads]
 		for (const road of additions) {
 			if (existing.has(`${road.coord[0]},${road.coord[1]}:${road.type}`)) continue
@@ -171,6 +332,14 @@ export default function GameWidget(
 		return true
 	}
 
+	/** Clear the active tool (and its context); called after a one-shot placement. */
+	const resetTool = () => {
+		interactionMode.selectedAction = ''
+		projectEditingState.hivePlan = undefined
+		projectEditingState.rotation = 0
+		projectEditingState.mirror = false
+	}
+
 	const gameEvents = {
 		objectClick(event: MouseEvent, object: InteractiveGameObject) {
 			if (event.button !== 0) return
@@ -179,14 +348,16 @@ export default function GameWidget(
 				selectionState.selectedObject = selectedBeforeFreightPick
 				return
 			}
-			// Project editing (draft authoring) takes precedence over the palette action.
-			if (projectEditingState.project) {
-				const applied = handleProjectEditClick(object)
-				if (applied && !event.shiftKey) projectEditingState.tool = ''
-				return
-			}
 			const action = interactionMode.selectedAction
 			if (isFreightAddStopAction(action)) return
+
+			// Project authoring: build/road/bulldoze/hive route to the active draft project.
+			if (projectEditingState.project && isProjectTool(action)) {
+				const applied = handleProjectEditClick(object, action)
+				if (applied && !event.shiftKey) resetTool()
+				return
+			}
+
 			if (action.startsWith('build:')) {
 				const applied = handleBuildingAction(event, object)
 				if (applied && !event.shiftKey) interactionMode.selectedAction = ''
@@ -208,6 +379,11 @@ export default function GameWidget(
 			handleProjectSelection(object)
 		},
 		objectDrag(tiles: Tile[], event: unknown) {
+			// Project bulldoze over a parallelogram.
+			if (projectEditingState.project && interactionMode.selectedAction === 'bulldoze') {
+				bulldozeTiles(tiles)
+				return
+			}
 			if (!interactionMode.selectedAction.startsWith('zone:')) return
 			handleZoningDrag(tiles)
 			const shift =
@@ -218,8 +394,11 @@ export default function GameWidget(
 			if (!shift) interactionMode.selectedAction = ''
 		},
 		roadDrag(tiles: Tile[], roadType: RoadType, event: unknown) {
-			// Project editing (draft authoring) takes precedence.
-			if (projectEditingState.project && handleProjectRoadDrag(tiles, roadType)) return
+			// Project authoring takes precedence when a road tool + project are active.
+			if (projectEditingState.project && isProjectTool(interactionMode.selectedAction)) {
+				handleProjectRoadDrag(tiles, roadType)
+				return
+			}
 			if (!interactionMode.selectedAction.startsWith('road:')) return
 			const applied = handleRoadDrag(tiles, roadType)
 			if (!applied) return
@@ -257,7 +436,7 @@ export default function GameWidget(
 	// Rotate/mirror the hive template being stamped into a project.
 	effect`game:project-hive-keys`(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
-			if (projectEditingState.tool !== 'hive') return
+			if (interactionMode.selectedAction !== 'hive') return
 			if (event.key === 'm' || event.key === 'M') {
 				event.preventDefault()
 				projectEditingState.mirror = !projectEditingState.mirror
@@ -306,18 +485,93 @@ export default function GameWidget(
 		return () => game.emit('dragPreviewClear')
 	})
 
-	// Project preview overlay: highlight the active project's planned buildings.
-	effect`game:project-preview`(() => {
-		const project = projectPreviewState.project
-		if (!projectPreviewState.active || !project) {
-			game.emit('dragPreviewClear')
+	// Single placement-preview effect: the persistent footprint of the selected
+	// project (always shown while it's previewed/edited) PLUS the hover ghost for
+	// the active build/hive tool. One `placementPreview` emit per change avoids
+	// the two effects fighting over the overlay (which previously cleared each
+	// other, hiding placed footprints and hive ghosts).
+	effect`game:placement-preview`(() => {
+		const previewedProject = projectPreviewState.active ? projectPreviewState.project : undefined
+		const editingProject = projectEditingState.project
+		const action = interactionMode.selectedAction
+
+		// Persistent footprint: the previewed project's existing entries + roads
+		// (blue; they are already-placed authoring state, not a pending placement,
+		// so they never tint red).
+		const persistent = previewedProject
+			? previewedProject.entries.map((entry) => ({
+					coord: [entry.coord[0], entry.coord[1]] as const,
+					alveolusType: entry.alveolusType,
+					variant: entry.variant,
+					blocked: undefined as string | undefined,
+					pending: false,
+				}))
+			: []
+		const persistentRoads = previewedProject
+			? previewedProject.roads.map((road) => ({
+					coord: road.coord,
+					type: road.type,
+					blocked: undefined as string | undefined,
+				}))
+			: []
+		const persistentDemolitions = previewedProject
+			? previewedProject.demolitions.map((coord) => [coord[0], coord[1]] as const)
+			: []
+
+		// Hover ghost for an active build/hive tool on the draft being edited.
+		let ghost: PlacementPreviewEntry[] = []
+		if (
+			editingProject &&
+			editingProject.stage === 'draft' &&
+			isProjectTool(action) &&
+			mrg.hoveredObject instanceof Tile
+		) {
+			const anchor = toAxialCoord(mrg.hoveredObject.position)
+			if (anchor) {
+				if (action === 'hive' && projectEditingState.hivePlan) {
+					const stamped = stampHivePlanEntries(
+						projectEditingState.hivePlan,
+						anchor,
+						projectEditingState.rotation,
+						projectEditingState.mirror
+					)
+					ghost = stamped.map((entry) => ({
+						coord: [entry.coord[0], entry.coord[1]] as const,
+						alveolusType: entry.alveolusType,
+						variant: entry.variant,
+						blocked: entryBlocked({ q: entry.coord[0], r: entry.coord[1] }, entry.alveolusType),
+						pending: true,
+					}))
+				} else if (action.startsWith('build:')) {
+					const raw = action.slice('build:'.length)
+					const dotIdx = raw.indexOf('.')
+					const alveolusType = (dotIdx >= 0 ? raw.slice(0, dotIdx) : raw) as AlveolusType
+					const variant = dotIdx >= 0 ? raw.slice(dotIdx + 1) : undefined
+					ghost = [
+						{
+							coord: [anchor.q, anchor.r] as const,
+							alveolusType,
+							variant,
+							blocked: entryBlocked(anchor, alveolusType),
+							pending: true,
+						},
+					]
+				}
+			}
+		}
+
+		// Merge, letting the hover ghost annotate/override a persistent entry at
+		// the same coord (dedupe by coord, ghost wins).
+		const merged = new Map<string, PlacementPreviewEntry>()
+		for (const entry of persistent) merged.set(hivePlanCoordKey(entry.coord), entry)
+		for (const entry of ghost) merged.set(hivePlanCoordKey(entry.coord), entry)
+
+		if (merged.size === 0 && persistentRoads.length === 0 && persistentDemolitions.length === 0) {
+			game.emit('placementPreviewClear')
 			return
 		}
-		const tiles = project.entries
-			.map((entry) => game.hex.getTile({ q: entry.coord[0], r: entry.coord[1] }))
-			.filter((tile): tile is Tile => !!tile)
-		game.emit('dragPreview', tiles, '')
-		return () => game.emit('dragPreviewClear')
+		game.emit('placementPreview', [...merged.values()], persistentRoads, persistentDemolitions)
+		return () => game.emit('placementPreviewClear')
 	})
 
 	// Reactive cursor: distinct cursor per active tool.
@@ -325,7 +579,7 @@ export default function GameWidget(
 		const action = interactionMode.selectedAction
 		const editingProject = projectEditingState.project
 		const canvas = container?.querySelector('canvas') as HTMLCanvasElement | null
-		if (editingProject && projectEditingState.tool) {
+		if (editingProject && isProjectTool(action)) {
 			container?.setAttribute('data-build-action', '')
 			if (canvas) canvas.style.cursor = 'crosshair'
 		} else if (action.startsWith('build:')) {

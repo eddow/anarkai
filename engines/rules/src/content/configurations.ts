@@ -11,7 +11,6 @@ export const configurations = {
 	},
 	transform: {
 		working: true,
-		productRatio: undefined,
 	},
 	default: {
 		working: true,

@@ -11,6 +11,7 @@ export {
 	hivePlanPlacementState,
 	interactionMode,
 	isHoveredObject,
+	isProjectTool,
 	mrg,
 	projectEditingState,
 	projectPreviewState,

@@ -3,9 +3,11 @@ import { alveoli, deposits, goods as goodsCatalog, terrain } from 'engine-rules'
 import type { TileContent } from 'ssh/board'
 import type { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import type { LooseGood } from 'ssh/board/looseGoods'
+import type { RoadType } from 'ssh/board/roads'
 import type { FreightLineDefinition, FreightStop } from 'ssh/freight/freight-line'
 import type { FreightAdSource, FreightPriorityTier } from 'ssh/freight/priority-channel'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
+import type { Project } from 'ssh/project'
 import { type AxialCoord, type Positioned, positionScope } from 'ssh/utils'
 
 /**
@@ -39,6 +41,9 @@ export const baseGameScope = scope({
 		'convey',
 		'vehicleOffload',
 		'construct',
+		'demolish',
+		'demolishRoad',
+		'buildRoad',
 		'forester',
 		'foundation',
 		'defragment',
@@ -81,7 +86,7 @@ export const baseGameScope = scope({
 
 	GenericWorkPlan: {
 		type: "'work'",
-		job: "'harvest' | 'transform' | 'convey' | 'construct' | 'forester' | 'foundation' | 'defragment' | 'vehicleHop' | 'zoneBrowse'",
+		job: "'harvest' | 'transform' | 'convey' | 'construct' | 'demolish' | 'demolishRoad' | 'buildRoad' | 'forester' | 'foundation' | 'defragment' | 'vehicleHop' | 'zoneBrowse'",
 		target: 'object', // TileContent validated at runtime
 		urgency: 'number',
 		fatigue: 'number',
@@ -300,6 +305,40 @@ export interface ConstructJob {
 	path?: Positioned[] // Path to construction site
 }
 
+export interface DemolishJob {
+	job: 'demolish'
+	urgency: number
+	fatigue: number
+	/** The project owning this demolition (object reference). */
+	project: Project
+	/** Tile coordinate to demolish. */
+	coord: readonly [number, number]
+	path?: Positioned[]
+}
+
+export interface DemolishRoadJob {
+	job: 'demolishRoad'
+	urgency: number
+	fatigue: number
+	/** The project owning this road demolition (object reference). */
+	project: Project
+	/** Road border midpoint to demolish. */
+	coord: readonly [number, number]
+	path?: Positioned[]
+}
+
+export interface BuildRoadJob {
+	job: 'buildRoad'
+	urgency: number
+	fatigue: number
+	/** The project owning this road build (object reference). */
+	project: Project
+	/** Road border midpoint to build. */
+	coord: readonly [number, number]
+	roadType: RoadType
+	path?: Positioned[]
+}
+
 export interface ForesterJob {
 	job: 'forester'
 	urgency: number
@@ -444,6 +483,9 @@ export type Job =
 	| TransformJob
 	| ConveyJob
 	| ConstructJob
+	| DemolishJob
+	| DemolishRoadJob
+	| BuildRoadJob
 	| ForesterJob
 	| VehicleOffloadJob
 	| FoundationJob

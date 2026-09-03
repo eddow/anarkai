@@ -9,6 +9,7 @@ import {
 import {
 	interactionMode,
 	mrg,
+	projectEditingState,
 	setActiveWorldViewPov,
 	setHoveredObject,
 } from '@app/lib/interactive-state'
@@ -25,6 +26,7 @@ import { Tile } from 'ssh/board/tile'
 import type { Game } from 'ssh/game/game'
 import type { InteractiveGameObject } from 'ssh/game/object'
 import { axial, fromCartesian, tileSize } from 'ssh/utils'
+import { toAxialCoord } from 'ssh/utils/position'
 
 function appScreen(app: Application): Rectangle | undefined {
 	return (app as unknown as { renderer?: { screen: Rectangle } }).renderer?.screen
@@ -109,6 +111,23 @@ export class InteractionManager {
 		if (!action.startsWith('road:')) return undefined
 		const type = action.replace('road:', '')
 		return isRoadType(type) ? type : undefined
+	}
+
+	/**
+	 * Road collision predicate for project authoring: true when the tile hosts a
+	 * planned alveolus (any project's entry), so a road can't be planned on the
+	 * same tile as an alveolus. Empty (inactive) otherwise.
+	 */
+	private roadBlocked = (tile: Tile): boolean => {
+		if (!projectEditingState.project) return false
+		const coord = toAxialCoord(tile.position)
+		const key = `${coord.q},${coord.r}`
+		for (const project of this.game.projects.projects) {
+			for (const entry of project.entries) {
+				if (`${entry.coord[0]},${entry.coord[1]}` === key) return true
+			}
+		}
+		return false
 	}
 
 	private isFreightAddStopTool(): boolean {
@@ -285,7 +304,12 @@ export class InteractionManager {
 				this.dragCurrentTile = currentTile
 				if (currentTile !== this.dragStartTile) this.dragHasMovedTile = true
 				const tiles = straightRoadTileTrace(this.dragStartTile, currentTile)
-				this.game.emit('roadPreview', tiles, roadType, canBuildRoadOnTrace(tiles))
+				this.game.emit(
+					'roadPreview',
+					tiles,
+					roadType,
+					canBuildRoadOnTrace(tiles, this.roadBlocked)
+				)
 			} else if (currentTile && currentTile !== this.dragStartTile) {
 				this.dragCurrentTile = currentTile
 				this.dragHasMovedTile = true
@@ -332,7 +356,7 @@ export class InteractionManager {
 					// Handled by freight add-stop drag.
 				} else if (roadType) {
 					const tiles = straightRoadTileTrace(this.dragStartTile, endTile)
-					if (canBuildRoadOnTrace(tiles)) {
+					if (canBuildRoadOnTrace(tiles, this.roadBlocked)) {
 						this.game.emit('roadDrag', tiles, roadType, e.nativeEvent)
 					}
 				} else {
@@ -357,7 +381,7 @@ export class InteractionManager {
 					// Handled by freight add-stop drag.
 				} else if (roadType) {
 					const tiles = [this.dragStartTile]
-					if (canBuildRoadOnTrace(tiles)) {
+					if (canBuildRoadOnTrace(tiles, this.roadBlocked)) {
 						this.game.emit('roadDrag', tiles, roadType, e.nativeEvent)
 					}
 				} else {

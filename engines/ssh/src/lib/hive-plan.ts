@@ -135,25 +135,33 @@ export function applyHivePlanToolAction(
 			selectedCoord: existing ? target : undefined,
 		}
 	}
-	const alveolusType = action.slice('build:'.length) as AlveolusType
+	// Build action may carry a variant path: `build:<type>[#<variant.path>]` (e.g.
+	// `build:pile#wood.extra`). `#` separates the type from the dot-separated variant.
+	const raw = action.slice('build:'.length)
+	const hashIdx = raw.indexOf('#')
+	const alveolusType = (hashIdx >= 0 ? raw.slice(0, hashIdx) : raw) as AlveolusType
+	const variant = hashIdx >= 0 ? raw.slice(hashIdx + 1) : undefined
 	if (existing) {
+		const sameType = existing.alveolusType === alveolusType && existing.variant === variant
 		return {
 			entries: entries.map((entry) =>
 				hivePlanCoordKey(entry.coord) === targetKey
 					? {
 							...cloneHivePlanEntry(entry),
 							alveolusType,
-							configuration: entry.alveolusType === alveolusType ? entry.configuration : undefined,
+							variant,
+							configuration: sameType ? entry.configuration : undefined,
 						}
 					: cloneHivePlanEntry(entry)
 			),
-			changed: existing.alveolusType !== alveolusType,
+			changed: !sameType,
 			selectedCoord: target,
 		}
 	}
 	const entry: HivePlanEntry = {
 		coord: target,
 		alveolusType,
+		variant,
 	}
 	return {
 		entries: [...entries.map(cloneHivePlanEntry), entry],
@@ -173,6 +181,40 @@ export function rotateHivePlanCoord(
 	let next = { q: coord[0], r: coord[1] }
 	for (let i = 0; i < ((rotation % 6) + 6) % 6; i++) next = rotateOnce(next)
 	return next
+}
+
+/** Reflect a relative coord across the q=r diagonal (one of the six axial reflections). */
+export function mirrorHivePlanCoord(coord: readonly [number, number]): readonly [number, number] {
+	return [coord[1], coord[0]]
+}
+
+/**
+ * The centroid of a hive plan, rounded to the nearest tile. Placement uses this
+ * as the plan's "center" — the hovered tile becomes the plan's center, not its
+ * `[0,0]` extreme.
+ *
+ * The centroid is computed **once** on the base (unmirrored, unrotated) shape
+ * and rounded, then the same mirror/rotation is applied to that rounded center.
+ * Mirroring and rotating integer coords are exact, so the "handle" tile under
+ * the cursor is stable across rotate/mirror — rounding the already-transformed
+ * centroid would shift the whole shape by up to a tile.
+ */
+export function hivePlanCenterOffset(
+	entries: readonly HivePlanEntry[],
+	rotation: number,
+	mirror: boolean
+): AxialCoord {
+	if (entries.length === 0) return { q: 0, r: 0 }
+	let q = 0
+	let r = 0
+	for (const entry of entries) {
+		q += entry.coord[0]
+		r += entry.coord[1]
+	}
+	const base = axial.round({ q: q / entries.length, r: r / entries.length })
+	let coord: readonly [number, number] = [base.q, base.r]
+	if (mirror) coord = mirrorHivePlanCoord(coord)
+	return rotateHivePlanCoord(coord, rotation)
 }
 
 function configurationKey(entry: HivePlanEntry): string {
@@ -349,7 +391,7 @@ export function validateHivePlanStructure(
 export class HivePlanCollection {
 	public plans: HivePlan[] = []
 
-	constructor(private readonly game: Game) {}
+	constructor(_game: Game) {}
 
 	/** Register index of a plan; -1 when the plan is not in this collection. */
 	indexOf(plan: HivePlan): number {
@@ -381,10 +423,7 @@ export class HivePlanCollection {
 		return plan
 	}
 
-	update(
-		plan: HivePlan,
-		patch: { name?: string; entries?: readonly HivePlanEntry[] }
-	): HivePlan {
+	update(plan: HivePlan, patch: { name?: string; entries?: readonly HivePlanEntry[] }): HivePlan {
 		const entries = patch.entries ?? plan.entries
 		const duplicate = this.findDuplicate(entries, plan)
 		if (duplicate) return duplicate
@@ -424,12 +463,19 @@ export function previewHivePlanPlacement(
 	game: Game,
 	plan: HivePlan,
 	anchor: AxialCoord,
-	rotation: number
+	rotation: number,
+	mirror = false
 ): HivePlanPlacementPreview {
+	const center = hivePlanCenterOffset(plan.entries, rotation, mirror)
 	const seen = new Set<string>()
 	const cells = plan.entries.map((entry) => {
-		const relative = rotateHivePlanCoord(entry.coord, rotation)
-		const coord = { q: anchor.q + relative.q, r: anchor.r + relative.r }
+		let relativeCoord: readonly [number, number] = [entry.coord[0], entry.coord[1]]
+		if (mirror) relativeCoord = mirrorHivePlanCoord(relativeCoord)
+		const relative = rotateHivePlanCoord(relativeCoord, rotation)
+		const coord = {
+			q: anchor.q + relative.q - center.q,
+			r: anchor.r + relative.r - center.r,
+		}
 		const key = axial.key(coord)
 		const tile = game.hex.getTile(coord)
 		let valid = true
@@ -451,8 +497,10 @@ export function previewHivePlanPlacement(
 		return { entry, tile, coord, valid, reason }
 	})
 	const rotatedEntries = plan.entries.map((entry) => {
-		const c = rotateHivePlanCoord(entry.coord, rotation)
-		return { ...entry, coord: [c.q, c.r] as const }
+		let relativeCoord: readonly [number, number] = [entry.coord[0], entry.coord[1]]
+		if (mirror) relativeCoord = mirrorHivePlanCoord(relativeCoord)
+		const c = rotateHivePlanCoord(relativeCoord, rotation)
+		return { ...entry, coord: [c.q - center.q, c.r - center.r] as const }
 	})
 	const structurallyValid = validateHivePlanStructure(game, rotatedEntries).length === 0
 	return {

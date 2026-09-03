@@ -1,9 +1,7 @@
 import ResourceImage from '@app/components/ResourceImage'
 import {
-	type AppShellBuildVariantNode,
 	buildPaletteSelectedActionValues,
 	getAppShellBuildableAlveoli,
-	getAppShellBuildToolbarRoots,
 } from '@app/lib/app-shell-controls'
 import { FREIGHT_ADD_STOP_ACTION } from '@app/lib/freight-map-pick'
 import type { Configuration } from '@app/lib/globals'
@@ -60,7 +58,6 @@ export const palettePanelBridge = reactive({
 })
 
 const browserPaletteBuildableAlveoli = getAppShellBuildableAlveoli()
-const browserPaletteBuildToolbarRoots = getAppShellBuildToolbarRoots()
 
 function browserPaletteBuildIcon(name: string) {
 	const sprite = visualAlveoli[name]?.sprites?.[0]
@@ -243,118 +240,11 @@ export type BrowserPaletteSchema = AnarkaiPaletteSchema<
 	BrowserPaletteToolbarItem
 >
 
-function createSelectedActionButton(
-	actionValue: string,
-	label: string,
-	keywords: string[],
-	icon?: string | JSX.Element | (() => JSX.Element)
-): BrowserPaletteToolbarItem {
-	return {
-		tool: `selectedAction|${actionValue}`,
-		editor: 'button',
-		config: {
-			label,
-			hint: label,
-			icon,
-			keywords,
-			tone: 'neutral',
-		},
-	}
-}
-
-function createVariantToolbarItem(
-	rootName: string,
-	variant: AppShellBuildVariantNode,
-	isChild = false
-): BrowserPaletteToolbarItem {
-	if (variant.children.length === 0) {
-		// Leaf variant: text-only button (label is the meaningful content)
-		return createSelectedActionButton(
-			variant.value,
-			variant.label,
-			['build', 'variant', rootName, variant.id],
-			undefined
-		)
-	}
-	const badgeIcon = isChild ? '▶' : browserPaletteBuildIcon(rootName)
-	return {
-		editor: 'drawer',
-		toolbar: [
-			createSelectedActionButton(
-				variant.value,
-				`Build ${variant.label}`,
-				['build', 'variant', rootName, variant.id],
-				badgeIcon
-			),
-			...variant.children.map((child) => createVariantToolbarItem(rootName, child, true)),
-		],
-		config: {
-			icon: badgeIcon,
-			// Child drawers: badge-only trigger (no label, hint=tooltip)
-			label: isChild ? '' : variant.label,
-			hint: `${variant.label} variants`,
-			tone: 'neutral',
-		},
-	}
-}
-
-function createBrowserPaletteBuildToolbar(): BrowserPaletteToolbarItem[] {
-	return browserPaletteBuildToolbarRoots.map((root) => {
-		const icon = browserPaletteBuildIcon(root.rootName)
-		if (root.variants.length === 0) {
-			return createSelectedActionButton(root.value, root.label, ['build', root.rootName], icon)
-		}
-		return {
-			editor: 'drawer',
-			toolbar: [
-				createSelectedActionButton(root.value, root.label, ['build', root.rootName], icon),
-				...root.variants.map((variant) => createVariantToolbarItem(root.rootName, variant, true)),
-			],
-			config: {
-				icon,
-				label: root.label,
-				hint: `${root.label} variants`,
-				tone: 'neutral',
-			},
-		}
-	})
-}
-
 function createBrowserPaletteTop(): PaletteBorder<BrowserPaletteToolbarItem> {
-	const top = structuredClone(browserPaletteDefaults.top)
-	const track = top[0]
-	if (!track) return top
-	const actionSectionIndex = track.findIndex((section) =>
-		section.toolbar.some(
-			(item) =>
-				item.tool === 'selectedAction' &&
-				item.config &&
-				typeof item.config === 'object' &&
-				'acceptedKeywords' in item.config &&
-				Array.isArray((item.config as AnarkaiPaletteEnumConfig).acceptedKeywords) &&
-				(item.config as AnarkaiPaletteEnumConfig).acceptedKeywords?.includes('build')
-		)
-	)
-	if (actionSectionIndex < 0) return top
-	const actionSection = track[actionSectionIndex]
-	const otherActionItems = actionSection.toolbar.filter(
-		(item) =>
-			!(
-				item.tool === 'selectedAction' &&
-				item.config &&
-				typeof item.config === 'object' &&
-				'acceptedKeywords' in item.config &&
-				Array.isArray((item.config as AnarkaiPaletteEnumConfig).acceptedKeywords) &&
-				(item.config as AnarkaiPaletteEnumConfig).acceptedKeywords?.includes('build')
-			)
-	)
-	track.splice(
-		actionSectionIndex,
-		1,
-		{ space: actionSection.space, toolbar: createBrowserPaletteBuildToolbar() },
-		{ space: 0.1, toolbar: otherActionItems }
-	)
-	return top
+	// Building tools moved into the project manager (the palette top toolbar no
+	// longer injects a generated build/road segment). Return a defensive clone of
+	// the authored defaults so callers can't mutate the parsed JSON.
+	return structuredClone(browserPaletteDefaults.top)
 }
 
 function clockPaletteTitle(item: BrowserPaletteToolbarItem): string {

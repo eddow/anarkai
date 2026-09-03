@@ -18,6 +18,7 @@ import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { Deposit, normalizePlantedTrees, UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import {
 	canBuildRoadOnTrace,
+	type RoadPatch,
 	type RoadPatches,
 	type RoadPatchInput,
 	type RoadType,
@@ -33,6 +34,7 @@ import {
 	type NpcSettlementTradeProfile,
 } from 'ssh/commerce/settlement-trade'
 import { Shop } from 'ssh/commerce/shop'
+import { RoadConstructionSite, roadAnchorTile } from 'ssh/construction-road'
 import { applyConstructionConcreteTerrain, createConstructionShell } from 'ssh/construction-shell'
 import {
 	type ConstructionPhase,
@@ -80,12 +82,6 @@ import {
 	previewHivePlanPlacement,
 } from 'ssh/hive-plan'
 import {
-	type Project,
-	ProjectCollection,
-	type SerializedProject,
-	validateProjectStructure,
-} from 'ssh/project'
-import {
 	deserializeCharacters,
 	type SerializedCharacter,
 	serializeCharacters,
@@ -99,6 +95,15 @@ import {
 	Vehicles,
 } from 'ssh/population/vehicle'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
+import {
+	type Project,
+	ProjectCollection,
+	type ProjectEntry,
+	type ProjectProgress,
+	type ProjectProgressItem,
+	type SerializedProject,
+	validateProjectStructure,
+} from 'ssh/project'
 import { ResidentialDemandTicker } from 'ssh/residential/demand'
 import { buildSaveIndexes, IndexStore } from 'ssh/serialization'
 import type { AlveolusType, DepositType, GoodType, TerrainType } from 'ssh/types'
@@ -146,6 +151,20 @@ export type GameEvents = {
 	dragPreview(tiles: Tile[], zoneType: string): void
 	roadPreview(tiles: Tile[], roadType: RoadType, valid: boolean): void
 	dragPreviewClear(): void
+	placementPreview(
+		entries: ReadonlyArray<{
+			coord: readonly [number, number]
+			alveolusType: AlveolusType
+			variant?: string
+			/** Non-empty when this tile collides (water, existing alveolus, other project, …). */
+			blocked?: string
+			/** true = pending (hover) placement; false/undefined = already-placed project footprint. */
+			pending?: boolean
+		}>,
+		roads?: ReadonlyArray<import('ssh/board/roads').RoadPreviewEntry>,
+		demolitions?: ReadonlyArray<readonly [number, number]>
+	): void
+	placementPreviewClear(): void
 	roadsChanged(coords: AxialCoord[]): void
 }
 export type GamePresentationEvent =
@@ -810,16 +829,18 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	/**
-	 * Preview the placement of a working hive plan at `anchor` with the given rotation.
-	 * @returns a placement preview, or `undefined` when the plan is missing or not `working`.
+	 * Preview the placement of a working hive plan at `anchor` (the plan's center)
+	 * with the given rotation + mirror.
+	 * @returns a placement preview, or `undefined` when the plan is missing.
 	 */
 	public previewHivePlanPlacement(
 		plan: HivePlan,
 		anchor: AxialCoord,
-		rotation: number
+		rotation: number,
+		mirror = false
 	): HivePlanPlacementPreview | undefined {
 		if (!plan) return undefined
-		return previewHivePlanPlacement(this, plan, anchor, rotation)
+		return previewHivePlanPlacement(this, plan, anchor, rotation, mirror)
 	}
 
 	/**
@@ -828,9 +849,14 @@ export class Game extends Eventful<GameEvents> {
 	 * to concrete tiles.
 	 * @returns `true` when the placement was applied.
 	 */
-	public applyHivePlanPlacement(plan: HivePlan, anchor: AxialCoord, rotation: number): boolean {
+	public applyHivePlanPlacement(
+		plan: HivePlan,
+		anchor: AxialCoord,
+		rotation: number,
+		mirror = false
+	): boolean {
 		if (!plan) return false
-		const preview = previewHivePlanPlacement(this, plan, anchor, rotation)
+		const preview = previewHivePlanPlacement(this, plan, anchor, rotation, mirror)
 		if (!preview.valid) return false
 		for (const cell of preview.cells) {
 			if (!cell.tile) return false
@@ -855,6 +881,10 @@ export class Game extends Eventful<GameEvents> {
 	 * Commit a draft project: validate its placed entries against the board, then
 	 * materialize each entry as a construction shell (linked to the project) and
 	 * each road instantly, and freeze the project to `working` (now executing).
+	 *
+	 * Entries sitting on tiles planned for demolition are deferred: their structure
+	 * is bulldozed first by construction engineers, then the entry is materialized
+	 * (see {@link materializeDeferredEntriesAt}).
 	 * @returns ok, or the issues that refused the commit (nothing is written on failure).
 	 */
 	public commitProject(
@@ -869,6 +899,9 @@ export class Game extends Eventful<GameEvents> {
 		const issues = validateProjectStructure(this, project.entries)
 		if (issues.length > 0) return { ok: false, issues }
 
+		// Tiles planned for demolition are available for construction (bulldozed first).
+		const demolitionKeys = new Set(project.demolitions.map((dem) => `${dem[0]},${dem[1]}`))
+
 		// Board occupancy check — fail fast before any write.
 		for (const entry of project.entries) {
 			const tile = this.hex.getTile({ q: entry.coord[0], r: entry.coord[1] })
@@ -878,6 +911,8 @@ export class Game extends Eventful<GameEvents> {
 					issues: [{ code: 'invalid-alveolus', message: `No tile at ${entry.coord}.` }],
 				}
 			}
+			// Deferred until the structure here is demolished; skip the occupancy check.
+			if (demolitionKeys.has(`${entry.coord[0]},${entry.coord[1]}`)) continue
 			if (!tile.canInteract(`build:${entry.alveolusType}`) || !tile.isClear) {
 				return {
 					ok: false,
@@ -886,34 +921,224 @@ export class Game extends Eventful<GameEvents> {
 			}
 		}
 
-		// Materialize entries as construction shells linked to the project.
+		// Materialize entries NOT on demolition tiles as construction shells linked to the project.
 		for (const entry of project.entries) {
-			const tile = this.hex.getTile({ q: entry.coord[0], r: entry.coord[1] })!
-			applyConstructionConcreteTerrain(tile)
-			const site = createConstructionSiteState({
-				kind: 'alveolus',
-				alveolusType: entry.alveolusType,
-				variant: entry.variant,
-			})
-			site.phase = 'waiting_materials'
-			const shell = createConstructionShell(tile, site)
-			Object.assign(shell, {
-				project,
-				planConfiguration: entry.configuration ? { ...entry.configuration } : undefined,
-			})
-			this.hex.setTileContent(tile, shell)
-			tile.asGenerated = false
-		}
-
-		// Apply roads instantly (road construction is deferred — no progress).
-		for (const road of project.roads) {
-			this.hex.setRoadType({ q: road.coord[0], r: road.coord[1] }, road.type)
+			if (demolitionKeys.has(`${entry.coord[0]},${entry.coord[1]}`)) continue
+			this.materializeProjectEntry(project, entry)
 		}
 
 		const result = this.projects.commit(project)
 		if (!result.ok) return result
+		// Roads stay in `project.roads` as the pending build list: each segment becomes
+		// a {@link RoadConstructionSite} on its anchor tile (advertising demand like any
+		// building); road engineers build them over time.
+		this.materializePendingRoadSites()
 		this.invalidateWorkPlanning('project.commit')
 		return { ok: true }
+	}
+
+	/**
+	 * Materialize a single pending road segment as a {@link RoadConstructionSite} on its
+	 * anchor tile. When the anchor tile is empty `UnBuiltLand` the site is created there;
+	 * when it already hosts this segment's site it is a no-op (returns `true`). If the
+	 * anchor cannot host a site (e.g. an occupied tile), the segment is built instantly
+	 * as a fallback and returns `true` so it can be dropped from `project.roads`.
+	 * Returns `false` only when the segment is already built on the board.
+	 */
+	public materializeRoadSite(project: Project, road: RoadPatch): boolean {
+		if (this.hex.getRoadType({ q: road.coord[0], r: road.coord[1] })) return false
+		const tile = roadAnchorTile(this, road.coord)
+		if (!tile) return false
+
+		if (tile.content instanceof RoadConstructionSite) {
+			return tile.content.coord[0] === road.coord[0] && tile.content.coord[1] === road.coord[1]
+		}
+
+		if (tile.content instanceof UnBuiltLand) {
+			const site = new RoadConstructionSite(tile, road.coord, road.type, project)
+			this.hex.setTileContent(tile, site)
+			return true
+		}
+
+		// Degenerate case (anchor tile is occupied, e.g. a freight bay): build instantly.
+		this.hex.setRoadType({ q: road.coord[0], r: road.coord[1] }, road.type)
+		return true
+	}
+
+	/**
+	 * Sweep all working projects' pending roads, materializing (or instant-building)
+	 * any whose anchor tile is now free. Idempotent; called on commit and whenever a
+	 * road site finalizes and frees its anchor tile.
+	 */
+	public materializePendingRoadSites(): void {
+		for (const project of this.projects.workingProjects) {
+			for (const road of project.roads) {
+				this.materializeRoadSite(project, road)
+			}
+			// Drop any segment that was built instantly (no construction site needed).
+			project.roads = project.roads.filter(
+				(road) => this.hex.getRoadType({ q: road.coord[0], r: road.coord[1] }) === undefined
+			)
+		}
+		this.invalidateWorkPlanning('project.road-sites')
+	}
+
+	/**
+	 * Materialize a single project entry as a construction shell on the board.
+	 * No-op unless the tile currently holds `UnBuiltLand` (safe to re-call after a
+	 * demolition has cleared the tile).
+	 */
+	public materializeProjectEntry(project: Project, entry: ProjectEntry): void {
+		const tile = this.hex.getTile({ q: entry.coord[0], r: entry.coord[1] })
+		if (!tile || !(tile.content instanceof UnBuiltLand)) return
+		applyConstructionConcreteTerrain(tile)
+		const site = createConstructionSiteState({
+			kind: 'alveolus',
+			alveolusType: entry.alveolusType,
+			variant: entry.variant,
+		})
+		site.phase = 'waiting_materials'
+		const shell = createConstructionShell(tile, site)
+		Object.assign(shell, {
+			project,
+			planConfiguration: entry.configuration ? { ...entry.configuration } : undefined,
+		})
+		this.hex.setTileContent(tile, shell)
+		tile.asGenerated = false
+		this.invalidateWorkPlanning('project.entry-materialized')
+	}
+
+	/**
+	 * After a demolition clears `coord`, materialize any working-project entry that
+	 * was deferred on that tile (bulldoze → clean → foundation → construction).
+	 */
+	public materializeDeferredEntriesAt(coord: { q: number; r: number }): void {
+		const key = `${coord.q},${coord.r}`
+		for (const project of this.projects.workingProjects) {
+			for (const entry of project.entries) {
+				if (`${entry.coord[0]},${entry.coord[1]}` === key) {
+					this.materializeProjectEntry(project, entry)
+				}
+			}
+		}
+	}
+
+	/**
+	 * Live construction progress for a project, read from the board (not the frozen
+	 * plan). Each alveolus entry and road segment reports `pending` / `building` /
+	 * `done` with applied work seconds and remaining material needs. `completed` /
+	 * `total` drive the aggregate progress bar (finished items count 1, building
+	 * items count their `applied/total` fraction).
+	 */
+	public projectProgress(project: Project): ProjectProgress {
+		const items: ProjectProgressItem[] = []
+		const missingGoods: Partial<Record<GoodType, number>> = {}
+		const addMissing = (needs: Partial<Record<GoodType, number>>) => {
+			for (const [good, qty] of Object.entries(needs)) {
+				const n = qty ?? 0
+				if (n > 0) missingGoods[good as GoodType] = (missingGoods[good as GoodType] ?? 0) + n
+			}
+		}
+		const ownedProject = (content: unknown): boolean =>
+			(content as { project?: Project } | null)?.project === project
+
+		for (const entry of project.entries) {
+			const label = entry.variant ? `${entry.alveolusType}#${entry.variant}` : entry.alveolusType
+			const tile = this.hex.getTile({ q: entry.coord[0], r: entry.coord[1] })
+			const content = tile?.content
+
+			if (isConstructionSiteShell(content) && ownedProject(content)) {
+				const total = content.constructionSite.recipe.workSeconds
+				const needs = content.remainingNeeds as Partial<Record<GoodType, number>>
+				items.push({
+					kind: 'alveolus',
+					label,
+					coord: entry.coord,
+					state: 'building',
+					applied: content.constructionWorkSecondsApplied,
+					total,
+					remainingNeeds: needs,
+				})
+				addMissing(needs)
+				continue
+			}
+			if (content instanceof Alveolus) {
+				items.push({
+					kind: 'alveolus',
+					label,
+					coord: entry.coord,
+					state: 'done',
+					applied: 1,
+					total: 1,
+					remainingNeeds: {},
+				})
+				continue
+			}
+			items.push({
+				kind: 'alveolus',
+				label,
+				coord: entry.coord,
+				state: 'pending',
+				applied: 0,
+				total: 0,
+				remainingNeeds: {},
+			})
+		}
+
+		for (const road of project.roads) {
+			const label = `road ${road.type}`
+			if (this.hex.getRoadType({ q: road.coord[0], r: road.coord[1] })) {
+				items.push({
+					kind: 'road',
+					label,
+					coord: road.coord,
+					state: 'done',
+					applied: 1,
+					total: 1,
+					remainingNeeds: {},
+				})
+				continue
+			}
+			const anchor = roadAnchorTile(this, road.coord)
+			const site = anchor?.content
+			if (
+				site instanceof RoadConstructionSite &&
+				site.coord[0] === road.coord[0] &&
+				site.coord[1] === road.coord[1]
+			) {
+				const total = site.constructionSite.recipe.workSeconds
+				const needs = site.remainingNeeds as Partial<Record<GoodType, number>>
+				items.push({
+					kind: 'road',
+					label,
+					coord: road.coord,
+					state: 'building',
+					applied: site.constructionWorkSecondsApplied,
+					total,
+					remainingNeeds: needs,
+				})
+				addMissing(needs)
+				continue
+			}
+			items.push({
+				kind: 'road',
+				label,
+				coord: road.coord,
+				state: 'pending',
+				applied: 0,
+				total: 0,
+				remainingNeeds: {},
+			})
+		}
+
+		let completed = 0
+		for (const item of items) {
+			if (item.state === 'done') completed += 1
+			else if (item.state === 'building' && item.total > 0) {
+				completed += Math.max(0, Math.min(1, item.applied / item.total))
+			}
+		}
+		return { items, completed, total: items.length, missingGoods }
 	}
 
 	/**
@@ -2905,9 +3130,7 @@ export class Game extends Eventful<GameEvents> {
 						? this.hivePlans.byIndex(entry.hivePlanIndex)
 						: undefined
 				const project =
-					entry.projectIndex !== undefined
-						? this.projects.byIndex(entry.projectIndex)
-						: undefined
+					entry.projectIndex !== undefined ? this.projects.byIndex(entry.projectIndex) : undefined
 				Object.assign(build, {
 					hivePlan,
 					project,
