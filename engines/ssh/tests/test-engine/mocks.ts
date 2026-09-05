@@ -304,9 +304,6 @@ function rulesTestOverrides() {
 			engineer: {
 				foundation: 3,
 				construct: 2,
-				demolish: 2.5,
-				demolishRoad: 2.5,
-				buildRoad: 2.5,
 			},
 			defragment: 0.9,
 			vehicleApproach: 2,

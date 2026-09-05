@@ -1,4 +1,5 @@
 import ConstructionProgressBar from '@app/components/ConstructionProgressBar'
+import ProjectSourcingEditor from '@app/components/ProjectSourcingEditor'
 import {
 	getAppShellBuildToolbarRoots,
 	getAppShellVariantEntries,
@@ -8,15 +9,13 @@ import { game, interactionMode, projectEditingState, projectPreviewState } from 
 import { Button, InspectorSection } from '@app/ui/anarkai'
 import { effect, reactive } from 'mutts'
 import { ROAD_TYPES } from 'ssh/board/roads'
-import type { ProjectSourcingMode } from 'ssh/commerce/commerce-model'
 import type { HivePlan } from 'ssh/hive-plan'
 import {
+	groupProjectEntriesIntoHives,
 	groupRoadsByConnectedType,
 	type Project,
 	type ProjectStage,
-	projectSourcingMode,
 } from 'ssh/project'
-import type { GoodType } from 'ssh/types/base'
 
 css`
 .project-manager {
@@ -156,27 +155,6 @@ css`
 	gap: 0.5rem;
 }
 
-.project-manager__sourcing {
-	display: inline-flex;
-	gap: 0.2rem;
-}
-
-.project-manager__sourcing button {
-	border: 1px solid var(--ak-border);
-	background: var(--ak-surface-panel);
-	color: var(--ak-text-muted);
-	border-radius: 999px;
-	padding: 0.1rem 0.45rem;
-	font-size: 0.72rem;
-	cursor: pointer;
-}
-
-.project-manager__sourcing button[data-selected='true'] {
-	color: var(--ak-text);
-	border-color: color-mix(in srgb, var(--ak-accent, #2563eb) 70%, var(--ak-border));
-	background: color-mix(in srgb, var(--ak-accent, #2563eb) 14%, var(--ak-surface-panel));
-}
-
 .project-manager__progress {
 	display: grid;
 	gap: 0.4rem;
@@ -278,12 +256,6 @@ const buildToolbarRoots = getAppShellBuildToolbarRoots()
 /** Build-tool variant leaves (`build:<root>#<variant>`) for the project editor. */
 const buildVariantEntries = getAppShellVariantEntries()
 
-const SOURCING_MODES: { value: ProjectSourcingMode; label: string }[] = [
-	{ value: 'auto', label: 'auto' },
-	{ value: 'take', label: 'take' },
-	{ value: 'buy', label: 'buy' },
-]
-
 function uniqueProjectName(base: string): string {
 	const names = new Set(game.projects.projects.map((project) => project.name))
 	if (!names.has(base)) return base
@@ -315,6 +287,10 @@ const ProjectManagerWidget = (props: { title?: string }) => {
 		const project = selectedProject()
 		return project ? groupRoadsByConnectedType(project.roads) : []
 	}
+	const hiveGroups = () => {
+		const project = selectedProject()
+		return project ? groupProjectEntriesIntoHives(project.entries) : []
+	}
 	const canCommit = () => {
 		const project = selectedProject()
 		return !!project && project.stage === 'draft'
@@ -324,6 +300,8 @@ const ProjectManagerWidget = (props: { title?: string }) => {
 		projectPreviewState.active ? projectPreviewState.project : undefined
 
 	const setPreview = (project: Project | undefined) => {
+		// Toggle off when clicking the already-previewed project.
+		if (project && previewedProject() === project) project = undefined
 		projectPreviewState.project = project
 		projectPreviewState.active = !!project
 	}
@@ -351,16 +329,22 @@ const ProjectManagerWidget = (props: { title?: string }) => {
 	}
 
 	const createNewProject = () => {
-		const project = game.projects.createDraft(uniqueProjectName('New project'), [])
+		const { project, duplicate } = game.projects.createDraft(uniqueProjectName('New project'), [])
 		state.filter = 'all'
 		state.selectedProject = project
-		state.message = 'New draft created.'
+		state.message = duplicate
+			? 'Matching project already exists — selected it.'
+			: 'New draft created.'
 	}
 
 	const rename = (v: string) => {
 		const project = selectedProject()
 		if (!project || project.stage !== 'draft') return
-		game.projects.updateDraft(project, { name: v })
+		const { project: next, duplicate } = game.projects.updateDraft(project, { name: v })
+		if (duplicate) {
+			state.selectedProject = next
+			state.message = `Matches existing project "${next.name}".`
+		}
 	}
 
 	const pickTool = (tool: string) => {
@@ -422,23 +406,30 @@ const ProjectManagerWidget = (props: { title?: string }) => {
 		state.message = `${project.name} restored as draft.`
 	}
 
+	const deleteSelected = () => {
+		const project = selectedProject()
+		if (!project) return
+		if (project.stage === 'working') {
+			state.message = 'Archive a working project before deleting it.'
+			return
+		}
+		const name = project.name
+		if (projectEditingState.project === project) projectEditingState.project = undefined
+		if (previewedProject() === project) setPreview(undefined)
+		game.projects.remove(project)
+		const list = projectsForFilter()
+		state.selectedProject = list[0]
+		state.message = `${name} deleted.`
+	}
+
 	const billEntries = () => {
 		const project = selectedProject()
 		if (!project) return []
 		const required = project.validationProgress.requiredGoods
-		const delivered = project.validationProgress.deliveredGoods
 		return Object.entries(required).map(([good, qty]) => ({
 			good,
 			required: qty ?? 0,
-			delivered: delivered[good as keyof typeof delivered] ?? 0,
 		}))
-	}
-
-	const sourcingModeFor = (good: string) => projectSourcingMode(selectedProject(), good as GoodType)
-	const setSourcing = (good: string, mode: ProjectSourcingMode) => {
-		const project = selectedProject()
-		if (!project) return
-		game.projects.setSourcingMode(project, good as GoodType, mode)
 	}
 
 	const progress = () => {
@@ -521,17 +512,48 @@ const ProjectManagerWidget = (props: { title?: string }) => {
 							progress).
 						</div>
 						<div class="project-manager__tree">
-							<div class="project-manager__tree-row project-manager__tree-row--group">
+							<div
+								if={selectedProject()?.stage === 'draft'}
+								class="project-manager__tree-row project-manager__tree-row--group"
+							>
 								Alveoli ({selectedProject()?.entries.length ?? 0})
 							</div>
-							<for each={selectedProject()?.entries ?? []}>
-								{(entry) => (
-									<div class="project-manager__tree-row project-manager__tree-row--child">
-										{entry.alveolusType}
-										{entry.variant ? `#${entry.variant}` : ''} @ {entry.coord[0]},{entry.coord[1]}
-									</div>
-								)}
-							</for>
+							<div if={selectedProject()?.stage === 'draft'}>
+								<for each={selectedProject()?.entries ?? []}>
+									{(entry) => (
+										<div class="project-manager__tree-row project-manager__tree-row--child">
+											{entry.alveolusType}
+											{entry.variant ? `#${entry.variant}` : ''} @ {entry.coord[0]},{entry.coord[1]}
+											{entry.configuration
+												? ` · ${entry.configuration.ref.scope}${entry.configuration.ref.name ? `:${entry.configuration.ref.name}` : ''}`
+												: ''}
+										</div>
+									)}
+								</for>
+							</div>
+							<div if={selectedProject()?.stage !== 'draft'}>
+								<for each={hiveGroups()}>
+									{(hive) => (
+										<fragment>
+											<div class="project-manager__tree-row project-manager__tree-row--group">
+												Hive {hive.index} ({hive.entries.length})
+											</div>
+											<for each={hive.entries}>
+												{(entry) => (
+													<div class="project-manager__tree-row project-manager__tree-row--child">
+														{entry.alveolusType}
+														{entry.variant ? `#${entry.variant}` : ''} @ {entry.coord[0]},
+														{entry.coord[1]}
+														{entry.configuration
+															? ` · ${entry.configuration.ref.scope}${entry.configuration.ref.name ? `:${entry.configuration.ref.name}` : ''}`
+															: ''}
+													</div>
+												)}
+											</for>
+										</fragment>
+									)}
+								</for>
+							</div>
 							<for each={roadGroups()}>
 								{(group) => (
 									<fragment>
@@ -551,30 +573,14 @@ const ProjectManagerWidget = (props: { title?: string }) => {
 						</div>
 					</InspectorSection>
 
-					<InspectorSection title="Bill (goods)">
+					<InspectorSection title="Bill (expected totals)">
 						<div class="project-manager__bill">
 							<for each={billEntries()}>
 								{(entry) => (
 									<div class="project-manager__bill-row">
 										<span>
-											{entry.good}: {entry.delivered} / {entry.required}
+											{entry.good}: {entry.required}
 										</span>
-										<div class="project-manager__sourcing">
-											<for each={SOURCING_MODES}>
-												{(mode) => (
-													<button
-														type="button"
-														disabled={selectedProject()?.stage === 'archived'}
-														data-selected={
-															sourcingModeFor(entry.good) === mode.value ? 'true' : 'false'
-														}
-														onClick={() => setSourcing(entry.good, mode.value)}
-													>
-														{mode.label}
-													</button>
-												)}
-											</for>
-										</div>
 									</div>
 								)}
 							</for>
@@ -582,6 +588,14 @@ const ProjectManagerWidget = (props: { title?: string }) => {
 								No bill yet.
 							</div>
 						</div>
+					</InspectorSection>
+
+					<InspectorSection title="Sourcing">
+						<ProjectSourcingEditor
+							if={!!selectedProject()}
+							game={game}
+							project={selectedProject()!}
+						/>
 					</InspectorSection>
 
 					<InspectorSection title="Progress">
@@ -779,6 +793,9 @@ const ProjectManagerWidget = (props: { title?: string }) => {
 							</Button>
 							<Button if={selectedProject()?.stage === 'archived'} onClick={unarchiveSelected}>
 								Unarchive
+							</Button>
+							<Button if={selectedProject()?.stage !== 'working'} onClick={deleteSelected}>
+								Delete
 							</Button>
 						</div>
 						<div if={state.message} class="project-manager__muted">

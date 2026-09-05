@@ -85,6 +85,7 @@ export function finalizeConstructionShell(shell: ConstructionSiteShell): void {
 			targetVariantId?: string
 			planConfiguration?: any
 			hivePlan?: HivePlan
+			project?: import('ssh/project').Project
 		}
 		const queue = buildShell.constructionQueue
 		const currentIdx = buildShell.constructionStepIndex ?? 0
@@ -112,6 +113,7 @@ export function finalizeConstructionShell(shell: ConstructionSiteShell): void {
 			if (assignedWorker) assignedWorker.assignedAlveolus = nextBuild
 			Object.assign(nextBuild, {
 				hivePlan: (shell as { hivePlan?: HivePlan }).hivePlan,
+				project: (shell as { project?: import('ssh/project').Project }).project,
 				planConfiguration: (shell as { planConfiguration?: any }).planConfiguration,
 			})
 			shell.tile.content = nextBuild

@@ -902,7 +902,12 @@ describe('findVehicleOffloadJob', () => {
 					{
 						loadSelection: migrateV1FiltersToGoodsSelection(['wood']),
 						unloadSelection: migrateV1FiltersToGoodsSelection(['wood']),
-						anchor: { kind: 'alveolus', hiveName: 'Hive', alveolusType: 'freight_bay', coord: [0, 0] },
+						anchor: {
+							kind: 'alveolus',
+							hiveName: 'Hive',
+							alveolusType: 'freight_bay',
+							coord: [0, 0],
+						},
 					},
 					{
 						loadSelection: migrateV1FiltersToGoodsSelection(['wood']),

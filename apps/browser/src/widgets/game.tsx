@@ -19,6 +19,7 @@ import type { PlacementPreviewEntry } from 'engine-pixi/renderers/placement-prev
 import { effect } from 'mutts'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { canBuildRoadAcrossBorder, type RoadType, roadBordersForTrace } from 'ssh/board/roads'
+import { purpleMarkerTiles } from 'ssh/board/space-connectivity'
 import { Tile } from 'ssh/board/tile'
 import { traces } from 'ssh/dev/debug'
 import type { GamePresentationEvent, InteractiveGameObject } from 'ssh/game'
@@ -113,16 +114,19 @@ export default function GameWidget(
 	}
 
 	/**
-	 * Whether a placed alveolus at `coord` collides with the board or a planned
-	 * entry. Everything collides with what already exists on the board and what
-	 * has already been planned (any project's entries) — except tiles marked for
+	 * Whether a placed alveolus at `coord` collides with the **live board**.
+	 * Collides with what already exists on the board — except tiles marked for
 	 * demolition in the active project (which are available for construction).
 	 * Returns a reason string, or `undefined` when the tile is clear.
 	 *
-	 * Collisions: missing tile, river channel, water terrain, an existing
+	 * Collisions: missing tile, river channel, water terrain, and an existing
 	 * alveolus / dwelling / construction shell / shop (`canInteract(build:)`
-	 * false), and a planned entry in any project. Deposits / loose goods do NOT
-	 * block (they need clearing at commit).
+	 * false). Deposits / loose goods do NOT block (they need clearing at commit).
+	 *
+	 * **No cross-plan check**: a planned entry in another project is deliberately
+	 * ignored. Plans never check each other — each is validated against the live
+	 * board + its own footprint only. A plan made stale by a later board change
+	 * is re-checked against the board when re-opened.
 	 */
 	const entryBlocked = (
 		coord: { q: number; r: number },
@@ -148,13 +152,20 @@ export default function GameWidget(
 		if (terrain === 'water') return 'water'
 		if (!tile.canInteract(`build:${alveolusType}`)) return 'blocked'
 
-		// Planned entries in ANY project collide (standardized).
-		for (const other of game.projects.projects) {
-			if (other.entries.some((entry) => hivePlanCoordKey(entry.coord) === key)) {
-				return 'planned'
-			}
-		}
 		return undefined
+	}
+
+	/**
+	 * Connectivity refusal for a proposed footprint. Returns the refusal reason plus
+	 * the exact purple-marker tiles: `completely-locked` ⇒ the whole footprint;
+	 * `partitions-free-space` ⇒ `lockedTiles` (+ walled neighbours); otherwise the
+	 * walled neighbours. `used` must include the FULL new walls (draft entries + ghost).
+	 */
+	const footprintConnectivity = (
+		used: ReadonlyArray<{ q: number; r: number }>
+	): { reason: string | undefined; purple: ReadonlyArray<{ q: number; r: number }> } => {
+		if (used.length === 0) return { reason: undefined, purple: [] }
+		return purpleMarkerTiles(game.hex, used)
 	}
 
 	/**
@@ -267,6 +278,15 @@ export default function GameWidget(
 			) {
 				return false
 			}
+			// Connectivity refusal (same rule as the ghost): draft entries + stamp.
+			if (
+				footprintConnectivity([
+					...project.entries.map((e) => ({ q: e.coord[0], r: e.coord[1] })),
+					...stamped.map((e) => ({ q: e.coord[0], r: e.coord[1] })),
+				]).reason
+			) {
+				return false
+			}
 			game.projects.updateDraft(project, { entries: [...project.entries, ...stamped] })
 			return true
 		}
@@ -280,6 +300,14 @@ export default function GameWidget(
 		const hashIdx = raw.indexOf('#')
 		const alveolusType = (hashIdx >= 0 ? raw.slice(0, hashIdx) : raw) as AlveolusType
 		if (entryBlocked(coord, alveolusType)) return false
+		if (
+			footprintConnectivity([
+				...project.entries.map((e) => ({ q: e.coord[0], r: e.coord[1] })),
+				coord,
+			]).reason
+		) {
+			return false
+		}
 		const next = applyHivePlanToolAction(project.entries, action, coord)
 		if (!next.changed) return true
 		game.projects.updateDraft(project, { entries: next.entries })
@@ -303,14 +331,25 @@ export default function GameWidget(
 			if (!canBuildRoadAcrossBorder(border)) return false
 		}
 
-		// Refuse roads that overlap a planned alveolus (any project's entry).
-		const planned = new Set<string>()
-		for (const other of game.projects.projects) {
-			for (const entry of other.entries) planned.add(hivePlanCoordKey(entry.coord))
+		// Refuse roads that cross one of THIS plan's own alveoli (internal
+		// consistency), except a planned freight bay at a trace endpoint (a road
+		// terminus, never crossed). Other projects' entries are ignored — plans
+		// never cross-check each other.
+		const planned = new Map<string, string[]>()
+		for (const entry of project.entries) {
+			const key = hivePlanCoordKey(entry.coord)
+			const list = planned.get(key) ?? []
+			list.push(entry.alveolusType)
+			planned.set(key, list)
 		}
-		for (const tile of tiles) {
+		for (let i = 0; i < tiles.length; i++) {
+			const tile = tiles[i]!
 			const coord = toAxialCoord(tile.position)
-			if (planned.has(hivePlanCoordKey(coord))) return false
+			const types = planned.get(hivePlanCoordKey(coord))
+			if (!types || types.length === 0) continue
+			const isEndpoint = i === 0 || i === tiles.length - 1
+			if (isEndpoint && types.includes('freight_bay')) continue
+			return false
 		}
 
 		const additions = borders
@@ -535,26 +574,72 @@ export default function GameWidget(
 						projectEditingState.rotation,
 						projectEditingState.mirror
 					)
-					ghost = stamped.map((entry) => ({
-						coord: [entry.coord[0], entry.coord[1]] as const,
-						alveolusType: entry.alveolusType,
-						variant: entry.variant,
-						blocked: entryBlocked({ q: entry.coord[0], r: entry.coord[1] }, entry.alveolusType),
-						pending: true,
-					}))
+					// Whole-hive connectivity: draft entries + ghost are the new walls.
+					const used = [
+						...editingProject.entries.map((e) => ({ q: e.coord[0], r: e.coord[1] })),
+						...stamped.map((e) => ({ q: e.coord[0], r: e.coord[1] })),
+					]
+					const { reason: connectivityReason, purple: purpleTiles } = footprintConnectivity(used)
+					const purpleKeys = new Set(purpleTiles.map((v) => `${v.q},${v.r}`))
+					// Connectivity refusal is NOT a collision: the footprint gets `invalid`
+					// (pinkish-invalid treatment). Purple markers go on the exact tiles
+					// `purpleMarkerTiles` returns: the whole footprint when completely
+					// locked, `lockedTiles` on partition, walled neighbours otherwise.
+					// A purple marker on a footprint tile overrides its ghost entry;
+					// elsewhere it is a separate highlight-only entry (no sprite).
+					ghost = [
+						...stamped.map((entry) => ({
+							coord: [entry.coord[0], entry.coord[1]] as const,
+							alveolusType: entry.alveolusType,
+							variant: entry.variant,
+							blocked: entryBlocked({ q: entry.coord[0], r: entry.coord[1] }, entry.alveolusType),
+							invalid: connectivityReason,
+							inaccessible: purpleKeys.has(`${entry.coord[0]},${entry.coord[1]}`)
+								? connectivityReason
+								: undefined,
+							pending: true,
+						})),
+						...purpleTiles
+							.filter((v) => !stamped.some((e) => e.coord[0] === v.q && e.coord[1] === v.r))
+							.map((v) => ({
+								coord: [v.q, v.r] as const,
+								inaccessible: connectivityReason,
+								pending: true,
+							})),
+					]
 				} else if (action.startsWith('build:')) {
 					const raw = action.slice('build:'.length)
 					const dotIdx = raw.indexOf('.')
 					const alveolusType = (dotIdx >= 0 ? raw.slice(0, dotIdx) : raw) as AlveolusType
 					const variant = dotIdx >= 0 ? raw.slice(dotIdx + 1) : undefined
+					const used = [
+						...projectEditingState.project!.entries.map((e) => ({
+							q: e.coord[0],
+							r: e.coord[1],
+						})),
+						anchor,
+					]
+					const { reason: connectivityReason, purple: purpleTiles } = footprintConnectivity(used)
+					const purpleKeys = new Set(purpleTiles.map((v) => `${v.q},${v.r}`))
 					ghost = [
 						{
 							coord: [anchor.q, anchor.r] as const,
 							alveolusType,
 							variant,
 							blocked: entryBlocked(anchor, alveolusType),
+							invalid: connectivityReason,
+							inaccessible: purpleKeys.has(`${anchor.q},${anchor.r}`)
+								? connectivityReason
+								: undefined,
 							pending: true,
 						},
+						...purpleTiles
+							.filter((v) => !(v.q === anchor.q && v.r === anchor.r))
+							.map((v) => ({
+								coord: [v.q, v.r] as const,
+								inaccessible: connectivityReason,
+								pending: true,
+							})),
 					]
 				}
 			}

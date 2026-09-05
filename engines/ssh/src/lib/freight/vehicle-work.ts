@@ -1752,10 +1752,7 @@ function findAdvertisedVehicleOffloadJob(
 			// A loaded line-service vehicle's `unloadToTile` is UI-only: executing it would flow into
 			// `allocateVehicleServiceForJob`, which throws "line service already active" for non-park
 			// maintenance and re-wedges the vehicle. Its `park` fallback (empty, docked) stays executable.
-			if (
-				isVehicleLineService(vehicle.service) &&
-				proposed.maintenanceKind === 'unloadToTile'
-			)
+			if (isVehicleLineService(vehicle.service) && proposed.maintenanceKind === 'unloadToTile')
 				continue
 			const score = proposedJobScore(proposed, distance)
 			if (!best || score > best.score)

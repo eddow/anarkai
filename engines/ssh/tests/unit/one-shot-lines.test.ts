@@ -10,6 +10,7 @@ import {
 	trySpawnConstructionLines,
 } from 'ssh/freight/one-shot-lines'
 import { Game } from 'ssh/game/game'
+import { BuildAlveolus } from 'ssh/hive/build'
 import type { SimulationLoop } from 'ssh/utils/loop'
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -528,6 +529,221 @@ describe('one-shot lines', () => {
 		})
 		expect(delivered).toBe(0)
 		expect(game.playerAccount.balanceVp).toBe(balanceBefore)
+	})
+
+	it('auto-buy picks the cheapest offer and charges price × qty', async () => {
+		game = new Game(
+			{ terrainSeed: 1, characterCount: 0, settlementGeneration: false },
+			{
+				terrains: {
+					concrete: [
+						[0, 0],
+						[0, 1],
+					],
+				},
+				dwellings: [
+					{
+						coord: [0, 1],
+						tier: 'basic_dwelling',
+						underConstruction: true,
+						constructionPhase: 'waiting_materials',
+					},
+				],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		// Cheap-but-far vs pricey-but-near: cheapest must win (price, then distance).
+		game.registerSettlementTradeProfile({
+			regionSetKey: '0,0',
+			id: 'settlement-cheap',
+			name: 'Cheap far',
+			kind: 'village',
+			center: { q: 20, r: 0 },
+			radius: 2,
+			cityHall: { kind: 'city_hall', name: 'Cheap far City Hall', position: { q: 20, r: 0 } },
+			offers: [{ good: 'wood', direction: 'sell', priceVp: 2 }],
+		})
+		game.registerSettlementTradeProfile({
+			regionSetKey: '0,0',
+			id: 'settlement-near',
+			name: 'Near pricey',
+			kind: 'village',
+			center: { q: 1, r: 0 },
+			radius: 2,
+			cityHall: { kind: 'city_hall', name: 'Near pricey City Hall', position: { q: 1, r: 0 } },
+			offers: [{ good: 'wood', direction: 'sell', priceVp: 5 }],
+		})
+
+		const dwelling = [...game.hex.tiles]
+			.map((tile) => tile.content)
+			.find((content): content is BuildDwelling => content instanceof BuildDwelling)
+		expect(dwelling).toBeInstanceOf(BuildDwelling)
+		if (!(dwelling instanceof BuildDwelling)) return
+
+		// basic_dwelling needs wood 2 → cheapest (2 VP) wins: exactly 4 VP spent.
+		const balanceBefore = game.playerAccount.balanceVp
+		const delivered = trySpawnConstructionDeliveries(game, {
+			reserve: { defaultReserve: 0 },
+			internality: 0.5,
+		})
+		expect(delivered).toBeGreaterThan(0)
+		expect(dwelling.storage.stock.wood ?? 0).toBe(2)
+		expect(game.playerAccount.balanceVp).toBe(balanceBefore - 4)
+	})
+
+	it('project take/buy gates self-haul vs delivery per good', async () => {
+		game = new Game(
+			{ terrainSeed: 1, characterCount: 0, settlementGeneration: false },
+			{
+				terrains: {
+					grass: [
+						[0, 0],
+						[1, 0],
+						[1, 1],
+						[2, 0],
+						[3, 0],
+					],
+				},
+				hives: [
+					{
+						name: 'Grove',
+						alveoli: [
+							{ alveolus: 'freight_bay', coord: [0, 0] },
+							{ alveolus: 'tree_chopper', coord: [1, 0] },
+							{ alveolus: 'pile', coord: [1, 1], variant: 'wood', goods: { wood: 12 } },
+						],
+					},
+				],
+				vehicles: [
+					{ name: 'free1', vehicleType: 'wheelbarrow', position: { q: 0, r: 0 } },
+					{ name: 'free2', vehicleType: 'wheelbarrow', position: { q: 0, r: 0 } },
+				],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		// Distinct layouts so dedup does not merge them (fingerprint covers type).
+		const { project: takeProject } = game.projects.createDraft('Take pile', [
+			{ coord: [2, 0], alveolusType: 'pile' },
+		])
+		const { project: buyProject } = game.projects.createDraft('Buy storage', [
+			{ coord: [3, 0], alveolusType: 'storage' },
+		])
+		expect(game.commitProject(takeProject).ok).toBe(true)
+		expect(game.commitProject(buyProject).ok).toBe(true)
+		game.projects.setSourcingMode(takeProject, 'wood', 'take')
+		game.projects.setSourcingMode(buyProject, 'wood', 'buy')
+		game.registerSettlementTradeProfile({
+			regionSetKey: '0,0',
+			id: 'settlement-1,0',
+			name: 'Neighbor market',
+			kind: 'village',
+			center: { q: 5, r: 0 },
+			radius: 2,
+			cityHall: {
+				kind: 'city_hall',
+				name: 'Neighbor market City Hall',
+				position: { q: 5, r: 0 },
+			},
+			offers: [{ good: 'wood', direction: 'sell', priceVp: 4 }],
+		})
+
+		// Self-haul serves only the take project (buy suppresses the self-haul branch).
+		const spawned = trySpawnConstructionLines(game, {
+			reserve: { defaultReserve: 0 },
+			internality: 0.5,
+		})
+		expect(spawned).toBe(1)
+		expect([...game.freightLines].filter(isOneShotLine)).toHaveLength(1)
+
+		// Delivery serves only the buy project (take suppresses the delivery branch).
+		const delivered = trySpawnConstructionDeliveries(game, {
+			reserve: { defaultReserve: 0 },
+			internality: 0.5,
+		})
+		expect(delivered).toBe(1)
+		const shellTake = game.hex.getTile({ q: 2, r: 0 })?.content as BuildAlveolus
+		const shellBuy = game.hex.getTile({ q: 3, r: 0 })?.content as BuildAlveolus
+		expect(shellTake).toBeInstanceOf(BuildAlveolus)
+		expect(shellBuy).toBeInstanceOf(BuildAlveolus)
+		// Take awaits its haul (no instant credit); buy was credited by the NPC delivery.
+		expect(shellTake.storage.stock.wood ?? 0).toBe(0)
+		expect(shellBuy.storage.stock.wood ?? 0).toBeGreaterThan(0)
+	})
+
+	it('a player import line suppresses automated delivery (bring it yourself)', async () => {
+		game = new Game(
+			{ terrainSeed: 1, characterCount: 0, settlementGeneration: false },
+			{
+				terrains: {
+					concrete: [
+						[0, 0],
+						[0, 1],
+					],
+				},
+				dwellings: [
+					{
+						coord: [0, 1],
+						tier: 'basic_dwelling',
+						underConstruction: true,
+						constructionPhase: 'waiting_materials',
+					},
+				],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		const profile: NpcSettlementTradeProfile = {
+			regionSetKey: '0,0',
+			id: 'settlement-1,0',
+			name: 'Neighbor market',
+			kind: 'village',
+			center: { q: 4, r: 0 },
+			radius: 2,
+			cityHall: {
+				kind: 'city_hall',
+				name: 'Neighbor market City Hall',
+				position: { q: 4, r: 0 },
+			},
+			offers: [{ good: 'wood', direction: 'sell', priceVp: 4 }],
+		}
+		game.registerSettlementTradeProfile(profile)
+		expect(game.netDeficitLedger.wood?.deficit ?? 0).toBeGreaterThan(0)
+
+		// Player-authored import line (settlement → construction zone) covers wood.
+		game.addFreightLine({
+			name: 'player wood import',
+			cyclic: true,
+			stops: [
+				{
+					loadSelection: woodOnly,
+					unloadSelection: woodOnly,
+					trade: { kind: 'settlement', center: profile.center, profile },
+				},
+				{
+					loadSelection: woodOnly,
+					unloadSelection: woodOnly,
+					zone: { kind: 'radius', center: [0, 1], radius: 3 },
+				},
+			],
+		})
+		const suppressed = trySpawnConstructionDeliveries(game, {
+			reserve: { defaultReserve: 0 },
+			internality: 0.5,
+		})
+		expect(suppressed).toBe(0)
+
+		// Without the player line the automation resumes buying.
+		for (const line of [...game.freightLines]) game.removeFreightLine(line)
+		const delivered = trySpawnConstructionDeliveries(game, {
+			reserve: { defaultReserve: 0 },
+			internality: 0.5,
+		})
+		expect(delivered).toBeGreaterThan(0)
 	})
 
 	it('spawns one line per concurrent construction need of the same good', async () => {

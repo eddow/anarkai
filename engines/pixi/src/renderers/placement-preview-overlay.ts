@@ -1,6 +1,6 @@
 import { alveoli, variantBadges } from 'engine-rules/visual-content'
 import { Container, Graphics, Point, Sprite, Texture } from 'pixi.js'
-import { roadBorderEndpointCoords, type RoadPreviewEntry } from 'ssh/board/roads'
+import { type RoadPreviewEntry, roadBorderEndpointCoords } from 'ssh/board/roads'
 import type { AlveolusType } from 'ssh/types/base'
 import { toWorldCoord } from 'ssh/utils/position'
 import { tileSize } from 'ssh/utils/varied'
@@ -13,10 +13,15 @@ import type { PixiGameRenderer } from '../renderer'
  */
 export interface PlacementPreviewEntry {
 	coord: readonly [number, number]
-	alveolusType: AlveolusType
+	/** Building sprite to ghost; omit for walled-in victim markers (highlight only, no sprite). */
+	alveolusType?: AlveolusType
 	variant?: string
-	/** Non-empty when this tile collides (water, existing alveolus, other project, …). */
+	/** Non-empty when this tile collides (water, existing alveolus, other project, …). Red. */
 	blocked?: string
+	/** Non-empty when this pending tile is refused without collision (deadlock/partition). Pinkish via pending-invalid. */
+	invalid?: string
+	/** Non-empty when this tile is a walled-in victim of the pending placement. Dark purple. */
+	inaccessible?: string
 	/** true = pending (hover) placement; false/undefined = already-placed project footprint. */
 	pending?: boolean
 }
@@ -26,6 +31,8 @@ const PREVIEW_ALPHA = 0.45
 const VALID_BLUE = { fill: 0x44aaff, stroke: 0x2288dd }
 /** Colliding tile (dark red/orange). */
 const COLLISION = { fill: 0xd95858, stroke: 0x9b1d24 }
+/** Walled-in victim tile (dark purple) — the `lockedTiles` / walled neighbours beside the footprint, or the whole footprint when completely locked. */
+const INACCESSIBLE = { fill: 0x8b5cf6, stroke: 0x4c1d95 }
 /** Whole pending placement invalid filigree (pinkish-red). */
 const PINKISH = { fill: 0xff9a9a, stroke: 0xe0557a }
 /** Sprite tint when the tile collides. */
@@ -46,9 +53,11 @@ function usableTexture(texture: Texture | undefined): Texture | null {
  * `PlacementPreviewEntry` as a faded building sprite (plus variant badge) and
  * each `RoadPreviewEntry` as a road line, in world space. A footprint is drawn
  * under every implied tile: **blue** for already-placed (persistent) footprints,
- * **dark red/orange** on colliding tiles, and **pinkish-red** across a *pending*
- * placement when it is invalid. Persistent project footprints never tint red —
- * only the cursor's pending placement does.
+ * **dark red/orange** on colliding tiles (`blocked`), **dark purple** on `inaccessible`
+ * tiles (the `lockedTiles` / walled neighbours, or the whole footprint when completely
+ * locked), and **pinkish-red** across a *pending* placement when it is invalid (an `invalid`
+ * connectivity refusal, or any blocked/inaccessible tile in the placement). Persistent project footprints never tint
+ * red — only the cursor's pending placement does.
  */
 export class PlacementPreviewOverlay {
 	private container: Container
@@ -144,9 +153,14 @@ export class PlacementPreviewOverlay {
 		// Roads (lines) next.
 		for (const road of roads) this.drawRoad(road)
 
-		// Pending (hover) validity only affects pending footprints.
+		// Pending (hover) validity only affects pending footprints. `blocked` (red =
+		// conflictual) and `invalid` (connectivity refusal, pinkish via pending-invalid)
+		// both invalidate; `inaccessible` victim markers (purple, beside the footprint)
+		// invalidate too.
 		const pending = entries.filter((entry) => entry.pending)
-		const pendingValid = pending.every((entry) => !entry.blocked)
+		const pendingValid = pending.every(
+			(entry) => !entry.blocked && !entry.invalid && !entry.inaccessible
+		)
 
 		const seen = new Set<string>()
 		for (const entry of entries) {
@@ -155,9 +169,11 @@ export class PlacementPreviewOverlay {
 			seen.add(key)
 			const colors = entry.blocked
 				? COLLISION
-				: entry.pending && !pendingValid
-					? PINKISH
-					: VALID_BLUE
+				: entry.inaccessible
+					? INACCESSIBLE
+					: entry.pending && !pendingValid
+						? PINKISH
+						: VALID_BLUE
 			this.drawTileHighlight(entry.coord, colors, 1)
 		}
 
@@ -165,18 +181,26 @@ export class PlacementPreviewOverlay {
 			const world = toWorldCoord({ q: entry.coord[0], r: entry.coord[1] })
 			if (!world) continue
 
-			const visualDef = alveoli[entry.alveolusType as keyof typeof alveoli]
+			const visualDef = entry.alveolusType
+				? alveoli[entry.alveolusType as keyof typeof alveoli]
+				: undefined
 			const textureName = visualDef?.sprites?.[0]
 			const tex = textureName ? usableTexture(this.renderer.getTexture(textureName)) : null
 			if (!tex) continue
 
-			const blocked = !!entry.blocked
+			const blocked = !!entry.blocked || !!entry.inaccessible
 			const invalidPending = !blocked && !!entry.pending && !pendingValid
 			const sprite = setPixiName(new Sprite(tex), 'placementPreview:sprite')
 			sprite.anchor.set(0.5)
 			sprite.position.set(world.x, world.y)
 			sprite.alpha = blocked ? 0.3 : invalidPending ? 0.35 : PREVIEW_ALPHA
-			sprite.tint = blocked ? BLOCKED_TINT : invalidPending ? INVALID_TINT : 0xffffff
+			sprite.tint = entry.blocked
+				? BLOCKED_TINT
+				: entry.inaccessible
+					? 0x8b5cf6
+					: invalidPending
+						? INVALID_TINT
+						: 0xffffff
 			const maxDim = Math.max(tex.width, tex.height)
 			if (maxDim > 1) {
 				const scale = (tileSize * (9 / 8)) / maxDim
@@ -190,9 +214,7 @@ export class PlacementPreviewOverlay {
 				const badgeKey = `${entry.alveolusType}.${entry.variant}` as keyof typeof variantBadges
 				const badgeDef = badgeKey in variantBadges ? variantBadges[badgeKey] : undefined
 				const badgeTexName = badgeDef?.sprites?.[0]
-				const badgeTex = badgeTexName
-					? usableTexture(this.renderer.getTexture(badgeTexName))
-					: null
+				const badgeTex = badgeTexName ? usableTexture(this.renderer.getTexture(badgeTexName)) : null
 				if (badgeTex) {
 					const badge = setPixiName(new Sprite(badgeTex), 'placementPreview:variant-badge')
 					badge.anchor.set(1, 0)

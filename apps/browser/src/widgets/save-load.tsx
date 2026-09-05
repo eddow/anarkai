@@ -61,7 +61,10 @@ css`
 }
 `
 
-const SaveLoadWidget = (props: DockviewWidgetProps<Record<string, never>>, scope: DockviewWidgetScope) => {
+const SaveLoadWidget = (
+	props: DockviewWidgetProps<Record<string, never>>,
+	scope: DockviewWidgetScope
+) => {
 	void scope
 	props.title = 'Save / Load'
 	const state = reactive({
@@ -101,10 +104,7 @@ const SaveLoadWidget = (props: DockviewWidgetProps<Record<string, never>>, scope
 		try {
 			snapshot = JSON.parse(raw) as SaveState
 		} catch (error) {
-			setStatus(
-				`Invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
-				'error'
-			)
+			setStatus(`Invalid JSON: ${error instanceof Error ? error.message : String(error)}`, 'error')
 			return
 		}
 		state.loading = true
@@ -123,8 +123,8 @@ const SaveLoadWidget = (props: DockviewWidgetProps<Record<string, never>>, scope
 		<div class="save-load-widget">
 			<InspectorSection title="Edit save state">
 				<p class="save-load-widget__hint">
-					Save copies the live game state into the text area as JSON. Edit it, then Load to
-					reload the game from that JSON.
+					Save copies the live game state into the text area as JSON. Edit it, then Load to reload
+					the game from that JSON.
 				</p>
 				<div class="save-load-widget__actions">
 					<Button onClick={save}>Save</Button>

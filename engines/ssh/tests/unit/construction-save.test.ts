@@ -49,9 +49,7 @@ describe('BuildAlveolus save/load', () => {
 		const state = game.saveGameData()
 		const hiveEntry = state.hives?.find((h) => h.name === 'PersistHive')
 		expect(hiveEntry?.alveoli.some((a) => a.underConstruction === true)).toBe(false)
-		const projectSite = state.sites?.find(
-			(site) => site.coord[0] === 1 && site.coord[1] === 0
-		)
+		const projectSite = state.sites?.find((site) => site.coord[0] === 1 && site.coord[1] === 0)
 		expect(projectSite).toMatchObject({
 			site: 'build:storage',
 			constructionPhase: 'building',

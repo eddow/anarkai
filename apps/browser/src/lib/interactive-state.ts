@@ -35,7 +35,12 @@ export const projectEditingState = reactive({
 /** Tool values that belong to project authoring (gated on {@link projectEditingState.project}). */
 export const PROJECT_TOOLS = ['hive', 'bulldoze'] as const
 export function isProjectTool(action: string): boolean {
-	return action === 'hive' || action === 'bulldoze' || action.startsWith('build:') || action.startsWith('road:')
+	return (
+		action === 'hive' ||
+		action === 'bulldoze' ||
+		action.startsWith('build:') ||
+		action.startsWith('road:')
+	)
 }
 
 /**

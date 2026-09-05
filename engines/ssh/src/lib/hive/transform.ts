@@ -59,9 +59,7 @@ export class TransformAlveolus extends Alveolus {
 		return {
 			...defaults,
 			working: baseConfig.working,
-			productRatio: isTransformConfiguration(baseConfig)
-				? baseConfig.productRatio
-				: undefined,
+			productRatio: isTransformConfiguration(baseConfig) ? baseConfig.productRatio : undefined,
 		}
 	}
 

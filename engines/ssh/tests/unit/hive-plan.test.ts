@@ -42,10 +42,10 @@ describe('hive plans (templates)', () => {
 		expect(collection.plans[0]).toBe(plan)
 	})
 
-	it('rejects disconnected layouts before validation', () => {
+	it('allows disconnected layouts (multi-hive projects group after commit)', () => {
 		const issues = validateHivePlanStructure(mockGame(), [entry(0, 0), entry(3, 0)])
 
-		expect(issues.map((issue) => issue.code)).toContain('disconnected')
+		expect(issues.map((issue) => issue.code)).not.toContain('disconnected')
 	})
 
 	it('normalizes exact duplicates across rotations', () => {

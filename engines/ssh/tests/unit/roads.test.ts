@@ -290,6 +290,41 @@ describe('road build validation', () => {
 		}
 	})
 
+	it('lets a road end at a bay but never cross through it', async () => {
+		const game = new Game(
+			{ terrainSeed: 1234, characterCount: 0 },
+			{
+				tiles: [
+					{ coord: [-1, 0], terrain: 'grass' },
+					{ coord: [0, 0], terrain: 'grass' },
+					{ coord: [1, 0], terrain: 'grass' },
+				],
+				hives: [
+					{
+						name: 'Hive',
+						alveoli: [{ coord: [0, 0], alveolus: 'freight_bay' }],
+					},
+				],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+
+		try {
+			const west = game.hex.getTile({ q: -1, r: 0 })!
+			const bay = game.hex.getTile({ q: 0, r: 0 })!
+			const east = game.hex.getTile({ q: 1, r: 0 })!
+
+			// A road may terminate at the bay (bay is the endpoint).
+			expect(canBuildRoadOnTrace(straightRoadTileTrace(west, bay))).toBe(true)
+
+			// A road may NOT cross the bay (bay is a middle tile of the trace).
+			expect(canBuildRoadOnTrace(straightRoadTileTrace(west, east))).toBe(false)
+		} finally {
+			game.destroy()
+		}
+	})
+
 	it('rejects residential tiles and planned construction projects', async () => {
 		const game = new Game(
 			{ terrainSeed: 1234, characterCount: 0 },

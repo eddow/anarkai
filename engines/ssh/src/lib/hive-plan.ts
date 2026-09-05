@@ -26,6 +26,11 @@ export interface HivePlanValidationProgress {
 	workSecondsApplied: number
 	workSecondsRequired: number
 	requiredGoods: Partial<Record<GoodType, number>>
+	/**
+	 * Legacy frozen field — always empty for projects. The bill is the expected
+	 * totals (`requiredGoods`); live delivered/missing state comes from
+	 * `Game.projectProgress` aggregating shell `remainingNeeds`, not from here.
+	 */
 	deliveredGoods: Partial<Record<GoodType, number>>
 }
 
@@ -372,13 +377,9 @@ export function validateHivePlanStructure(
 		}
 		groups.push(group)
 	}
-	if (groups.length > 1) {
-		issues.push({
-			code: 'disconnected',
-			message: 'All plan alveoli must form one connected hive.',
-			groups,
-		})
-	}
+	// Disconnected entries are allowed: a project may span several hives and the
+	// committed tree groups them via `groupProjectEntriesIntoHives`. Connectivity
+	// is a display grouping, not a commit gate.
 	return issues
 }
 

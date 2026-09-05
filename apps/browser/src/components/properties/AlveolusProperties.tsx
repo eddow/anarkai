@@ -382,10 +382,7 @@ const AlveolusProperties = (props: AlveolusPropertiesProps) => {
 				</div>
 			</PropertyGridRow>
 
-			<PropertyGridRow
-				if={state.isTransform}
-				label={String(T.alveolus.productRatio)}
-			>
+			<PropertyGridRow if={state.isTransform} label={String(T.alveolus.productRatio)}>
 				<div class="alveolus-transform-ratio">
 					<div class="alveolus-transform-ratio__goods">
 						<select

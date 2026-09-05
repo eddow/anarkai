@@ -31,6 +31,56 @@ export function listHives(game: Game): Hive[] {
 	return game.hex.listHives()
 }
 
+/** How locally available a good is, for the project sourcing "nearest → not produced" sort. */
+export type GoodAvailabilityKind = 'produced' | 'held' | 'unproduced'
+
+export interface GoodAvailability {
+	readonly kind: GoodAvailabilityKind
+	/** Min hex distance to the nearest producing/holding hive (`Infinity` when unproduced). */
+	readonly distance: number
+}
+
+/**
+ * Measure how locally available `good` is relative to `coord`, for ordering a
+ * project's bill in the sourcing UI:
+ *
+ * - `'produced'`  — some hive **produces** it (`normalizedDelta > 0`); we can make
+ *   it ourselves. Ranked by nearest producer, regardless of current stock.
+ * - `'held'`      — no producer, but a hive **holds** it (imported / leftover stock
+ *   in a storage/pile, `normalizedDelta === 0`). Present, but not produced.
+ * - `'unproduced'`— no producer and no stock anywhere.
+ *
+ * This keeps "can we make it?" (produced) distinct from "do we happen to have
+ * some?" (held) — e.g. imported concrete sits in storage as `held`, never `produced`.
+ */
+export function measureGoodAvailability(
+	game: Game,
+	good: GoodType,
+	coord: AxialCoord
+): GoodAvailability {
+	let bestProducerDistance = Number.POSITIVE_INFINITY
+	let bestHolderDistance = Number.POSITIVE_INFINITY
+	let produced = false
+	let held = false
+	for (const hive of listHives(game)) {
+		const flow = hive.profile[good]
+		if (!flow) continue
+		const distance = estateDistanceToCoord(hive, coord)
+		if (flow.normalizedDelta > 0) {
+			// A genuine producer — we can make this good.
+			produced = true
+			if (distance < bestProducerDistance) bestProducerDistance = distance
+		} else if (flow.normalizedDelta === 0 && flow.stock > 0) {
+			// A holder (storage/pile) with stock present — imported or leftover.
+			held = true
+			if (distance < bestHolderDistance) bestHolderDistance = distance
+		}
+	}
+	if (produced) return { kind: 'produced', distance: bestProducerDistance }
+	if (held) return { kind: 'held', distance: bestHolderDistance }
+	return { kind: 'unproduced', distance: Number.POSITIVE_INFINITY }
+}
+
 /**
  * Own-estate (internal) supply for `good`: each hive's exportable stock above its
  * reserve keep-target. `ownDemand` is 0 for now — a hive's own operating demand is

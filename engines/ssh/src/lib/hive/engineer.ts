@@ -19,7 +19,8 @@ export class EngineerAlveolus extends Alveolus {
 	get workingGoodsRelations(): GoodsRelations {
 		const relations: GoodsRelations = {}
 		for (const project of this.game.projects.projects) {
-			if (project.stage !== 'draft' && project.stage !== 'working') continue
+			// Committed projects only — drafts are private intent with no board demand.
+			if (project.stage !== 'working') continue
 			for (const [good, qty] of Object.entries(project.validationProgress.requiredGoods)) {
 				const delivered = project.validationProgress.deliveredGoods[good as GoodType] ?? 0
 				const stocked = this.storage.stock[good as GoodType] ?? 0

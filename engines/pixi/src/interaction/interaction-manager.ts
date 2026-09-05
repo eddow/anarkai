@@ -116,15 +116,18 @@ export class InteractionManager {
 	/**
 	 * Road collision predicate for project authoring: true when the tile hosts a
 	 * planned alveolus (any project's entry), so a road can't be planned on the
-	 * same tile as an alveolus. Empty (inactive) otherwise.
+	 * same tile as an alveolus. A planned **freight bay** is a road terminus — it
+	 * may end a road but never be crossed. Empty (inactive) otherwise.
 	 */
-	private roadBlocked = (tile: Tile): boolean => {
+	private roadBlocked = (tile: Tile, isTraceEndpoint: boolean): boolean => {
 		if (!projectEditingState.project) return false
 		const coord = toAxialCoord(tile.position)
 		const key = `${coord.q},${coord.r}`
 		for (const project of this.game.projects.projects) {
 			for (const entry of project.entries) {
-				if (`${entry.coord[0]},${entry.coord[1]}` === key) return true
+				if (`${entry.coord[0]},${entry.coord[1]}` !== key) continue
+				if (isTraceEndpoint && entry.alveolusType === 'freight_bay') continue
+				return true
 			}
 		}
 		return false
@@ -304,12 +307,7 @@ export class InteractionManager {
 				this.dragCurrentTile = currentTile
 				if (currentTile !== this.dragStartTile) this.dragHasMovedTile = true
 				const tiles = straightRoadTileTrace(this.dragStartTile, currentTile)
-				this.game.emit(
-					'roadPreview',
-					tiles,
-					roadType,
-					canBuildRoadOnTrace(tiles, this.roadBlocked)
-				)
+				this.game.emit('roadPreview', tiles, roadType, canBuildRoadOnTrace(tiles, this.roadBlocked))
 			} else if (currentTile && currentTile !== this.dragStartTile) {
 				this.dragCurrentTile = currentTile
 				this.dragHasMovedTile = true

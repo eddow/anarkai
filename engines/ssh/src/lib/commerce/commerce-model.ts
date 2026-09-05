@@ -133,16 +133,29 @@ export interface PriceFieldTuning {
 // ── Deficit (urgency) ────────────────────────────────────────────────────────
 
 /**
+ * A working project's **forward-declared** bill for an entry that is not yet
+ * materialized on the board (e.g. a deferred demolition entry). It has no live
+ * storage — delivery must skip it — but it still contributes to the demand side
+ * of the ledger so the deficit reads the true forward demand.
+ */
+export interface ProjectForwardNeed {
+	readonly kind: 'project-forward'
+	readonly projectName: string
+	readonly coord: readonly [number, number]
+}
+
+/**
  * The concrete runtime types that can declare a {@link NeededGood}. Each member
  * is distinguishable at runtime by an existing discriminator — no `kind` field:
  *   - `Alveolus`              → `instanceof Alveolus`
  *   - `ConstructionSiteShell` → `isConstructionSiteShell(source)`
  *   - `UnBuiltLand` (foundation phase) → `instanceof UnBuiltLand`
+ *   - `ProjectForwardNeed`    → `kind === 'project-forward'` (no storage)
  * `ConstructionSiteShell` is disjoint from both classes (a shell is a `TileContent`
  * with `storage`, never an `Alveolus`/`UnBuiltLand`). Future contributors
  * (dwellings, commercial zones) extend this union.
  */
-export type NeedSource = Alveolus | ConstructionSiteShell | UnBuiltLand
+export type NeedSource = Alveolus | ConstructionSiteShell | UnBuiltLand | ProjectForwardNeed
 
 /**
  * One urgent (2-use) need declared by one contributing object. The object *is*
@@ -212,21 +225,29 @@ export interface SourcingEntry {
 	readonly quota: number | 'rest'
 }
 
-export type ProjectSourcing = Partial<Record<GoodType, readonly SourcingEntry[]>>
-
 /**
- * Authoring-time, per-good sourcing **policy** for a project: how each bill good
- * should be acquired. This is the player-facing knob — the transport automation
- * reads it to decide between the internal (self-haul) and external (buy) branches.
+ * Authoring-time, per-good sourcing **decision** for a project's bill good: is
+ * this good **taken** from the local economy, or **bought** automatically?
  *
- * - `'auto'` (default) — internal-first, external fallback (the internality slider).
- * - `'take'`  — self-haul only (own hive → site); never bought externally.
- * - `'buy'`   — outside delivery only (NPC settlement → site); never self-hauled.
+ * - `'take'` — await locally: self-haul it from an own hive, or bring it yourself
+ *   with a player-authored import line (including an NPC trade-stop line to choose
+ *   the buying place). The transport automation never auto-buys it, and any player
+ *   line already covering the need suppresses automated orders (dedupe).
+ * - `'buy'`  — auto-buy it via outside delivery: the automation buys from the
+ *   best-ranked NPC sell offer (cheapest `priceVp`, nearest on price ties) and pays
+ *   `priceVp × qty` from the wallet; an NPC brings it (currently an instant credit,
+ *   no physical carrier yet). The transport automation never self-hauls it.
+ *
+ * This is a finite, one-shot decision over the project's *bill* (not a standing
+ * rule engine — that is {@link GoodSelectionPolicy}, used by freight halts). The
+ * UI presents it as a single availability-sorted list with a "take / buy" divider;
+ * only explicit per-good overrides are stored (an absent good falls back to the
+ * automation's internal-first + external-fallback behaviour).
  */
-export type ProjectSourcingMode = 'auto' | 'take' | 'buy'
+export type ProjectSourcingMode = 'take' | 'buy'
 
-/** Per-good sourcing policy override. Unset goods fall back to `'auto'`. */
-export type ProjectSourcingPolicy = Partial<Record<GoodType, ProjectSourcingMode>>
+/** Explicit per-good overrides; an unlisted good has no override. */
+export type ProjectSourcing = Partial<Record<GoodType, ProjectSourcingMode>>
 
 // ── Wallet ───────────────────────────────────────────────────────────────────
 

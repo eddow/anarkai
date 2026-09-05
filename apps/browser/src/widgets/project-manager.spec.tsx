@@ -6,6 +6,10 @@ vi.mock('@app/lib/css', () => ({
 	css: () => '',
 }))
 
+vi.mock('@app/components/EntityBadge', () => ({
+	default: (props: { text?: string }) => <span class="entity-badge">{props.text}</span>,
+}))
+
 const globals = vi.hoisted(() => ({
 	game: {
 		configurationManager: {
@@ -16,6 +20,8 @@ const globals = vi.hoisted(() => ({
 		projects: undefined as unknown as ProjectCollection,
 		commitProject: vi.fn(() => ({ ok: true })),
 		invalidateWorkPlanning: vi.fn(),
+		transportAutomation: { reserve: { defaultReserve: 0 } },
+		hex: { listHives: vi.fn(() => []) },
 	},
 	projectEditingState: {
 		project: undefined,
@@ -99,8 +105,8 @@ describe('ProjectManagerWidget', () => {
 	})
 
 	it('lists projects with their stage', () => {
-		const draft = globals.game.projects.createDraft('Draft project', [])
-		const working = globals.game.projects.createDraft('Working project', [])
+		const { project: draft } = globals.game.projects.createDraft('Draft project', [])
+		const { project: working } = globals.game.projects.createDraft('Working project', [])
 		working.stage = 'working'
 		void draft
 		stop = latch(container, <ProjectManagerWidget />)
@@ -110,7 +116,7 @@ describe('ProjectManagerWidget', () => {
 	})
 
 	it('sets the editing tool when a build button is clicked', () => {
-		const project = globals.game.projects.createDraft('Draft project', [])
+		const { project } = globals.game.projects.createDraft('Draft project', [])
 		stop = latch(container, <ProjectManagerWidget />)
 		globals.game.projects.projects[0] = project
 		// Force selection via the effect picking the first project.
@@ -127,7 +133,7 @@ describe('ProjectManagerWidget', () => {
 	})
 
 	it('commits a draft project from the Commit button', () => {
-		const project = globals.game.projects.createDraft('Draft project', [
+		const { project } = globals.game.projects.createDraft('Draft project', [
 			{ coord: [0, 0], alveolusType: 'storage' },
 		])
 		void project
@@ -142,7 +148,7 @@ describe('ProjectManagerWidget', () => {
 	})
 
 	it('lists hive plans in a Hives tool category and stamps them', () => {
-		const project = globals.game.projects.createDraft('Draft project', [])
+		const { project } = globals.game.projects.createDraft('Draft project', [])
 		const plan = { name: 'Wood Factory', entries: [], knownnessFingerprint: '' }
 		globals.game.hivePlans.plans = [plan]
 		stop = latch(container, <ProjectManagerWidget />)
@@ -162,7 +168,7 @@ describe('ProjectManagerWidget', () => {
 	})
 
 	it('collapses and expands a tool category', () => {
-		const project = globals.game.projects.createDraft('Draft project', [])
+		const { project } = globals.game.projects.createDraft('Draft project', [])
 		void project
 		stop = latch(container, <ProjectManagerWidget />)
 

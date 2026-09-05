@@ -4,6 +4,7 @@ import { Game } from 'ssh/game/game'
 import type { HivePlan, HivePlanEntry } from 'ssh/hive-plan'
 import { hivePlanCenterOffset, hivePlanFingerprint, rotateHivePlanCoord } from 'ssh/hive-plan'
 import {
+	groupProjectEntriesIntoHives,
 	groupRoadsByConnectedType,
 	ProjectCollection,
 	projectFingerprint,
@@ -23,6 +24,7 @@ const mockGame = () =>
 		},
 		hivePlans: { plans: [] },
 		invalidateWorkPlanning() {},
+		emit() {},
 	}) as any
 
 const entry = (
@@ -125,7 +127,8 @@ describe('projects (placed alveoli + roads)', () => {
 		const a = collection.createDraft('A', [entry(0, 0), entry(1, 0)])
 		const b = collection.createDraft('B', [entry(5, 5), entry(6, 5)])
 
-		expect(b).toBe(a)
+		expect(b.project).toBe(a.project)
+		expect(b.duplicate).toBe(a.project)
 		expect(collection.projects).toHaveLength(1)
 	})
 
@@ -134,13 +137,13 @@ describe('projects (placed alveoli + roads)', () => {
 		const a = collection.createDraft('A', [])
 		const b = collection.createDraft('B', [])
 
-		expect(a).not.toBe(b)
-		expect(collection.draftProjects).toEqual([a, b])
+		expect(a.project).not.toBe(b.project)
+		expect(collection.draftProjects).toEqual([a.project, b.project])
 	})
 
 	it('tracks demolition todos and round-trips them through serialization', () => {
 		const collection = new ProjectCollection(mockGame())
-		const project = collection.createDraft('A', [entry(0, 0)])
+		const { project } = collection.createDraft('A', [entry(0, 0)])
 
 		collection.updateDraft(project, {
 			demolitions: [
@@ -169,7 +172,7 @@ describe('projects (placed alveoli + roads)', () => {
 
 	it('tracks road demolition todos and removes completed ones', () => {
 		const collection = new ProjectCollection(mockGame())
-		const project = collection.createDraft('A', [entry(0, 0)])
+		const { project } = collection.createDraft('A', [entry(0, 0)])
 
 		collection.updateDraft(project, {
 			demolitions: [[2, 3]],
@@ -191,30 +194,67 @@ describe('projects (placed alveoli + roads)', () => {
 		expect(collection.removeDemolition(project, [2, 3])).toBe(false)
 	})
 
-	it('tracks per-good sourcing policy and round-trips it', () => {
+	it('tracks per-good take/buy sourcing overrides and round-trips them', () => {
 		const collection = new ProjectCollection(mockGame())
-		const project = collection.createDraft('A', [entry(0, 0)])
+		const { project } = collection.createDraft('A', [entry(0, 0)])
 
-		// Defaults to `auto` for any good.
-		expect(projectSourcingMode(project, 'stone')).toBe('auto')
-		expect(projectSourcingMode(undefined, 'stone')).toBe('auto')
+		// No override by default.
+		expect(projectSourcingMode(project, 'stone')).toBeUndefined()
+		expect(projectSourcingMode(undefined, 'stone')).toBeUndefined()
 
+		// Per-good override.
 		collection.setSourcingMode(project, 'stone', 'buy')
 		collection.setSourcingMode(project, 'wood', 'take')
 		expect(projectSourcingMode(project, 'stone')).toBe('buy')
 		expect(projectSourcingMode(project, 'wood')).toBe('take')
 
+		// Clearing an override restores `undefined`.
+		collection.setSourcingMode(project, 'stone', undefined)
+		expect(projectSourcingMode(project, 'stone')).toBeUndefined()
+
+		// Wholesale replace (take-all / buy-all).
+		collection.setSourcing(project, { wood: 'buy', planks: 'take' })
+		expect(projectSourcingMode(project, 'wood')).toBe('buy')
+		expect(projectSourcingMode(project, 'planks')).toBe('take')
+
 		const restored = new ProjectCollection(mockGame())
 		restored.deserialize(collection.serialize())
-		expect(projectSourcingMode(restored.projects[0], 'stone')).toBe('buy')
-		expect(projectSourcingMode(restored.projects[0], 'wood')).toBe('take')
+		expect(restored.projects[0].sourcing).toEqual({ wood: 'buy', planks: 'take' })
+		expect(projectSourcingMode(restored.projects[0], 'wood')).toBe('buy')
+		expect(projectSourcingMode(restored.projects[0], 'planks')).toBe('take')
 	})
 
 	it('validates project structure', () => {
 		expect(validateProjectStructure(mockGame(), []).map((issue) => issue.code)).toContain('empty')
+		// Disconnected entries are allowed — they group into several hives after commit.
 		expect(
 			validateProjectStructure(mockGame(), [entry(0, 0), entry(3, 0)]).map((issue) => issue.code)
-		).toContain('disconnected')
+		).not.toContain('disconnected')
+	})
+
+	it('groups placed alveoli into hives by adjacency', () => {
+		// One contiguous cluster: (0,0) + (1,0) + (1,-1).
+		const single = groupProjectEntriesIntoHives([entry(0, 0), entry(1, 0), entry(1, -1)])
+		expect(single).toHaveLength(1)
+		expect(single[0].index).toBe(1)
+		expect(single[0].entries).toHaveLength(3)
+
+		// Two disjoint clusters → two hives.
+		const split = groupProjectEntriesIntoHives([
+			entry(0, 0),
+			entry(1, 0),
+			entry(10, 10),
+			entry(11, 10),
+		])
+		expect(split).toHaveLength(2)
+		expect(split[0].entries).toHaveLength(2)
+		expect(split[1].entries).toHaveLength(2)
+		expect(split[0].index).toBe(1)
+		expect(split[1].index).toBe(2)
+
+		// Every entry is grouped exactly once.
+		const all = [...split[0].entries, ...split[1].entries]
+		expect(all).toHaveLength(4)
 	})
 
 	it('groups roads into same-type connected components', () => {
@@ -256,7 +296,7 @@ describe('projects (placed alveoli + roads)', () => {
 
 	it('commits a draft project into working (freeze only, no board)', () => {
 		const collection = new ProjectCollection(mockGame())
-		const project = collection.createDraft('Storage Pair', [entry(0, 0), entry(1, 0)])
+		const { project } = collection.createDraft('Storage Pair', [entry(0, 0), entry(1, 0)])
 
 		const result = collection.commit(project)
 
@@ -265,9 +305,37 @@ describe('projects (placed alveoli + roads)', () => {
 		expect(collection.workingProjects).toEqual([project])
 	})
 
+	it('commits disconnected entries as a multi-hive project', () => {
+		const collection = new ProjectCollection(mockGame())
+		const { project } = collection.createDraft('Split', [entry(0, 0), entry(3, 0)])
+
+		const result = collection.commit(project)
+
+		expect(result.ok).toBe(true)
+		expect(project.stage).toBe('working')
+	})
+
+	it('commits a draft even when it shares a cell with a working project (no cross-plan check)', () => {
+		const collection = new ProjectCollection(mockGame())
+		const { project: first } = collection.createDraft('First', [entry(0, 0), entry(1, 0)])
+		expect(collection.commit(first).ok).toBe(true)
+
+		const { project: second } = collection.createDraft('Second', [entry(5, 5)])
+		// Same tile as `first` but a different layout so dedup does not merge them.
+		second.entries = [entry(0, 0)]
+		// Plans never cross-check each other: the direct collection commit has no
+		// board, so nothing here refuses the overlap. Board occupancy (which would
+		// catch `first`'s materialized shell) is enforced in `Game.commitProject`,
+		// not in `ProjectCollection.commit`.
+		const result = collection.commit(second)
+
+		expect(result.ok).toBe(true)
+		expect(second.stage).toBe('working')
+	})
+
 	it('refuses to commit an empty project', () => {
 		const collection = new ProjectCollection(mockGame())
-		const project = collection.createDraft('Empty', [])
+		const { project } = collection.createDraft('Empty', [])
 
 		const result = collection.commit(project)
 
@@ -292,7 +360,7 @@ describe('projects (placed alveoli + roads)', () => {
 		await game.loaded
 		game.ticker.stop()
 		try {
-			const project = game.projects.createDraft('Pair', [entry(0, 0), entry(1, 0)])
+			const { project } = game.projects.createDraft('Pair', [entry(0, 0), entry(1, 0)])
 			// Road on the border between (0,1) and (0,2): axial midpoint (0, 1.5).
 			project.roads = [{ coord: [0, 1.5], type: 'path' }]
 
@@ -309,9 +377,9 @@ describe('projects (placed alveoli + roads)', () => {
 			expect(game.hex.getRoadType({ q: 0, r: 1.5 })).toBeUndefined()
 			expect(project.roads).toEqual([{ coord: [0, 1.5], type: 'path' }])
 
-			// Removing the built todo reflects completion.
+			// Marking the built segment complete keeps it listed (stable progress total).
 			expect(game.projects.removeRoad(project, [0, 1.5])).toBe(true)
-			expect(project.roads).toEqual([])
+			expect(project.roads).toEqual([{ coord: [0, 1.5], type: 'path' }])
 		} finally {
 			game.destroy()
 		}
@@ -327,7 +395,7 @@ describe('projects (placed alveoli + roads)', () => {
 		await game.loaded
 		game.ticker.stop()
 		try {
-			const project = game.projects.createDraft('Draft', [entry(0, 0)])
+			const { project } = game.projects.createDraft('Draft', [entry(0, 0)])
 			game.projects.archive(project)
 
 			const result = game.commitProject(project)
@@ -352,7 +420,7 @@ describe('projects (placed alveoli + roads)', () => {
 		await game.loaded
 		game.ticker.stop()
 		try {
-			const project = game.projects.createDraft('Blocked', [entry(0, 0)])
+			const { project } = game.projects.createDraft('Blocked', [entry(0, 0)])
 
 			const result = game.commitProject(project)
 
@@ -376,7 +444,7 @@ describe('projects (placed alveoli + roads)', () => {
 		await game.loaded
 		game.ticker.stop()
 		try {
-			const project = game.projects.createDraft('Rebuild', [entry(0, 0)])
+			const { project } = game.projects.createDraft('Rebuild', [entry(0, 0)])
 			game.projects.updateDraft(project, { demolitions: [[0, 0]] })
 
 			const result = game.commitProject(project)
@@ -394,6 +462,62 @@ describe('projects (placed alveoli + roads)', () => {
 			const shell = game.hex.getTile({ q: 0, r: 0 })!.content
 			expect(isConstructionSiteShell(shell)).toBe(true)
 			expect((shell as { project?: unknown }).project).toBe(project)
+		} finally {
+			game.destroy()
+		}
+	})
+
+	it('reports a foreign alveolus as pending, not done', async () => {
+		const game = new Game(
+			{ terrainSeed: 12, characterCount: 0, settlementGeneration: false },
+			{
+				terrains: { grass: [[0, 0]] },
+				hives: [
+					{ name: 'Occ', alveoli: [{ coord: [0, 0] as const, alveolus: 'storage' as const }] },
+				],
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+		try {
+			// A pile planned where a storage already stands: not done.
+			const { project } = game.projects.createDraft('Mismatch', [
+				{ coord: [0, 0], alveolusType: 'pile' },
+			])
+			const progress = game.projectProgress(project)
+			expect(progress.items[0]?.state).toBe('pending')
+		} finally {
+			game.destroy()
+		}
+	})
+
+	it('refuses to commit a project that overlaps a working project', async () => {
+		const game = new Game(
+			{ terrainSeed: 11, characterCount: 0, settlementGeneration: false },
+			{
+				terrains: {
+					grass: [
+						[0, 0],
+						[1, 0],
+					],
+				},
+			}
+		)
+		await game.loaded
+		game.ticker.stop()
+		try {
+			// Different entry sets (so no dedup), but both claim tile (0,0).
+			const { project: first } = game.projects.createDraft('First', [entry(0, 0), entry(1, 0)])
+			expect(game.commitProject(first).ok).toBe(true)
+
+			const { project: second } = game.projects.createDraft('Second', [entry(0, 0)])
+			const result = game.commitProject(second)
+
+			expect(result.ok).toBe(false)
+			expect(second.stage).toBe('draft')
+			// Board occupancy rejects this (the tile already hosts `first`'s
+			// materialized shell), not a cross-plan conflict check.
+			expect(result.ok === false && result.issues).toHaveLength(1)
 		} finally {
 			game.destroy()
 		}

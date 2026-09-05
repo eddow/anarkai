@@ -610,18 +610,38 @@ direction for how need and excess are computed and satisfied.
 
 ### Project sourcing
 
-A project's bill is not a flat `{ good: qty }` — it is a set of **sourcing requirements**: "buy X units of
-good G from source S", and a good can be split across several sources with **quotas** (partial
-self-provision: own forester 40 + NPC settlement 60).
+A project's bill (`Project.validationProgress.requiredGoods`) is the construction-recipe sum over its
+entries. Each bill good is **taken** from the local economy or **bought** automatically — a one-shot,
+finite decision over *this project's bill*, not a standing rule engine (that is
+`GoodSelectionPolicy`, used by freight halts):
 
-- **Quotas stay editable while the project is ongoing** — re-pin sources and amounts as the project runs
-  (not frozen at push).
+- `take` — resolve locally (self-haul from an own hive, or the player buys manually); never auto-bought.
+- `buy` — auto-buy via outside delivery; never self-hauled.
+
+`Project.sourcing` is `Partial<Record<GoodType, 'take' | 'buy'>>` — **explicit per-good overrides only**.
+An unset good falls back to the automation's internal-first + external-fallback behaviour. The transport
+automation reads the override: self-haul skips `buy` goods, outside delivery skips `take` goods.
+
+The **UI** is a single, bill-only list sorted *nearest → not produced* (`measureGoodAvailability`:
+`produced` / `held` / `unproduced`), with a **"take / buy" divider** defaulting to the produced/not-
+produced boundary — resolved in one click via **"Take all" / "Buy all"**, per-good by click/drag, and the
+divider itself is draggable to move the default cutoff.
+
+- **Forward declaration.** A working project's **deferred** (not-yet-materialized) entry bills are added
+  to the deficit ledger's demand side (`ProjectForwardNeed`), so the deficit reads the true forward demand
+  even before a demolition clears the tile. Forward-declared needs have no live storage, so delivery
+  skips them; once materialized, the shell advertises the same demand through the ordinary path.
+- **A construction plan produces nothing.** Cleared resources and demolition leftovers are not accounted
+  against the project — the ledger's `surplus` half stays `0` for construction demand (producer-buffer
+  export availability is a separate, later slice).
+- **Sourcing stays editable while the project is ongoing** — tunable in `draft` and `working`, frozen
+  only in `archived`.
 - **Sources** = own hives, NPC settlements, NPC production hives, and (multiplayer) other players'
   settlements. Internal source = price 0 + corridor cost; external = price + distance.
 - **Resolution is internal-first**: own hives first (after their own demand + reserve), then external
   sources ranked by price × stock × distance; `quota: 'rest'` = "fill the remainder here" is the automatic
   default.
-- Sourcing is the **resolution of the net-deficit ledger**, not a parallel system — a manual quota is an
+- Sourcing is the **resolution of the net-deficit ledger**, not a parallel system — a manual policy is an
   `explicit` override of the internal-first default.
 - **Vehicles are allocated to temporary corridors** for project-bound transport — a resource commitment
   (like special operations), not a permanent corridor.

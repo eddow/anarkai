@@ -1,8 +1,9 @@
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
-import { computeNetDeficitLedger } from 'ssh/commerce/deficit-ledger'
+import { computeNetDeficitLedger, computeProjectForwardNeeds } from 'ssh/commerce/deficit-ledger'
 import { dorm } from 'ssh/game/exampleGames'
 import { Game } from 'ssh/game/game'
 import { BuildAlveolus } from 'ssh/hive/build'
+import type { Project } from 'ssh/project'
 import { residentialBasicDwellingSite } from 'ssh/residential/constants'
 import { trySpawnResidentialProject } from 'ssh/residential/demand'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -60,4 +61,31 @@ describe('computeNetDeficitLedger', () => {
 		expect(second.concrete).toBeUndefined()
 		expect(second.stone?.demand).toBe(first.stone!.demand)
 	}, 15000)
+
+	it('forward-declares deferred project entry bills into the ledger', () => {
+		const project = {
+			name: 'Deferred',
+			stage: 'working',
+			entries: [
+				{ coord: [0, 0], alveolusType: 'pile' },
+				{ coord: [1, 0], alveolusType: 'pile' },
+			],
+		} as unknown as Project
+
+		// Nothing materialized on the board yet → every entry forward-declares its bill.
+		// pile bill = foundation concrete 1 + root recipe wood 4 (see test-engine/mocks).
+		const needs = computeProjectForwardNeeds([project], () => undefined)
+
+		expect(needs.filter((need) => need.good === 'concrete')).toHaveLength(2)
+		expect(needs.filter((need) => need.good === 'wood')).toHaveLength(2)
+		expect(
+			needs.every(
+				(need) => need.source.kind === 'project-forward' && need.source.projectName === 'Deferred'
+			)
+		).toBe(true)
+
+		const ledger = computeNetDeficitLedger([], needs)
+		expect(ledger.concrete?.demand).toBe(2)
+		expect(ledger.wood?.demand).toBe(8)
+	})
 })

@@ -41,7 +41,10 @@ describe('Soviet gather wedge', () => {
 				// on a wood-only gather line).
 				const wedged = [...game.vehicles].filter((v) => {
 					const stock = Object.entries(v.storage.stock).filter(([, q]) => (q ?? 0) > 0)
-					return stock.some(([good]) => good !== 'wood' && good !== 'stone' && good !== 'planks' && good !== 'concrete')
+					return stock.some(
+						([good]) =>
+							good !== 'wood' && good !== 'stone' && good !== 'planks' && good !== 'concrete'
+					)
 				})
 				expect(
 					wedged.map((v) => ({ name: v.name, stock: v.storage.stock })),
@@ -52,10 +55,7 @@ describe('Soviet gather wedge', () => {
 				const woodStored = woodHives.reduce(
 					(total, hive) =>
 						total +
-						[...hive.alveoli].reduce(
-							(sum, alv) => sum + (alv.storage?.stock?.wood ?? 0),
-							0
-						),
+						[...hive.alveoli].reduce((sum, alv) => sum + (alv.storage?.stock?.wood ?? 0), 0),
 					0
 				)
 				expect(woodStored, 'no wood gathered into any Wood hive').toBeGreaterThan(0)
@@ -64,13 +64,13 @@ describe('Soviet gather wedge', () => {
 				const planksProduced = woodHives.reduce(
 					(total, hive) =>
 						total +
-						[...hive.alveoli].reduce(
-							(sum, alv) => sum + (alv.storage?.stock?.planks ?? 0),
-							0
-						),
+						[...hive.alveoli].reduce((sum, alv) => sum + (alv.storage?.stock?.planks ?? 0), 0),
 					0
 				)
-				expect(planksProduced, 'no planks produced (wood never conveyed to sawmill)').toBeGreaterThan(0)
+				expect(
+					planksProduced,
+					'no planks produced (wood never conveyed to sawmill)'
+				).toBeGreaterThan(0)
 			},
 			{
 				virtualSeconds: 180,

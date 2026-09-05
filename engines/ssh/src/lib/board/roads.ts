@@ -168,20 +168,38 @@ export function canBuildRoadAcrossBorder(border: TileBorder): boolean {
 }
 
 /**
+ * Whether a tile is a valid road **terminus**: a freight bay. A bay is the road's
+ * dock, so a road may *end* at it — but never *cross through* it (its tile is a
+ * building footprint, not passable ground).
+ */
+export function isRoadTerminusTile(tile: Tile): boolean {
+	const content = tile.content
+	return content instanceof Alveolus && content.action.type === 'road-fret'
+}
+
+/**
  * Whether a road trace may pass through this tile while being authored.
  *
  * `blocked` is an optional predicate for tiles that refuse a road even though
  * their board content is empty — used by project authoring so a road cannot be
- * planned on top of a planned alveolus.
+ * planned on top of a planned alveolus. It receives `isTraceEndpoint` so a planned
+ * freight bay (also a road terminus) is allowed to end a road, mirroring the board
+ * rule in {@link isRoadTerminusTile}.
  */
-export function canBuildRoadThroughTile(tile: Tile, blocked?: (tile: Tile) => boolean): boolean {
+export function canBuildRoadThroughTile(
+	tile: Tile,
+	blocked?: (tile: Tile, isTraceEndpoint: boolean) => boolean,
+	isTraceEndpoint = false
+): boolean {
 	if (!isRoadCompatibleTerrain(tile)) return false
 	if (tile.zone?.type === 'residential') return false
-	if (blocked?.(tile)) return false
+	if (blocked?.(tile, isTraceEndpoint)) return false
 	const content = tile.content
 	if (!content) return true
-	if (content instanceof Alveolus && content.action.type === 'road-fret') return true
-	if (content instanceof Alveolus) return false
+	if (content instanceof Alveolus) {
+		// A freight bay may terminate a road; any other alveolus blocks entirely.
+		return isTraceEndpoint && isRoadTerminusTile(tile)
+	}
 	if (content instanceof BasicDwelling) return false
 	if (isConstructionSiteShell(content)) return false
 	if (content instanceof UnBuiltLand) {
@@ -201,11 +219,13 @@ export function canBuildRoadThroughTile(tile: Tile, blocked?: (tile: Tile) => bo
  */
 export function canBuildRoadOnTrace(
 	trace: readonly Tile[],
-	blocked?: (tile: Tile) => boolean
+	blocked?: (tile: Tile, isTraceEndpoint: boolean) => boolean
 ): boolean {
 	if (trace.length === 0) return false
-	for (const tile of trace) {
-		if (!canBuildRoadThroughTile(tile, blocked)) return false
+	for (let i = 0; i < trace.length; i++) {
+		const tile = trace[i]!
+		const isEndpoint = i === 0 || i === trace.length - 1
+		if (!canBuildRoadThroughTile(tile, blocked, isEndpoint)) return false
 	}
 	const borders = roadBordersForTrace(trace)
 	if (trace.length > 1 && borders.length !== trace.length - 1) return false

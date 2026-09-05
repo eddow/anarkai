@@ -103,16 +103,37 @@ export class DragPreviewOverlay {
 		this.graphics.clear()
 		const style = roadMacroStyle(roadType)
 
-		// Planned project alveoli block a road from crossing their tile.
+		// Planned project alveoli block a road from crossing their tile; a planned
+		// freight bay may terminate the road (endpoint) but never be crossed.
 		const blockedKeys = new Set<string>()
 		for (const project of this.renderer.game.projects.projects) {
 			for (const entry of project.entries) blockedKeys.add(`${entry.coord[0]},${entry.coord[1]}`)
 		}
+		const plannedBlocks = (tile: Tile, isEndpoint: boolean): boolean => {
+			const coord = toAxialCoord(tile.position)
+			const key = `${coord.q},${coord.r}`
+			if (!blockedKeys.has(key)) return false
+			// A planned bay at an endpoint is a valid terminus, not a blocker.
+			if (isEndpoint) {
+				for (const project of this.renderer.game.projects.projects) {
+					for (const entry of project.entries) {
+						if (
+							`${entry.coord[0]},${entry.coord[1]}` === key &&
+							entry.alveolusType === 'freight_bay'
+						)
+							return false
+					}
+				}
+			}
+			return true
+		}
 
 		// Per-tile footprint: blue (valid) / pinkish (whole-trace invalid) / red (error).
-		for (const tile of tiles) {
-			const coord = toAxialCoord(tile.position)
-			const blocked = !canBuildRoadThroughTile(tile) || blockedKeys.has(`${coord.q},${coord.r}`)
+		for (let i = 0; i < tiles.length; i++) {
+			const tile = tiles[i]!
+			const isEndpoint = i === 0 || i === tiles.length - 1
+			const blocked =
+				!canBuildRoadThroughTile(tile, undefined, isEndpoint) || plannedBlocks(tile, isEndpoint)
 			const colors = blocked ? INVALID_ROAD_COLORS : valid ? CONSTRUCTION_BLUE : PINKISH
 			this.drawTileHighlight(tile, colors.fill, colors.stroke, 0.36, 0.9)
 		}

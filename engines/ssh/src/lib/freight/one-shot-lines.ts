@@ -30,6 +30,7 @@ import {
 	reserveFor,
 	type SourcingPolicy,
 } from 'ssh/commerce/sourcing'
+import { RoadConstructionSite } from 'ssh/construction-road'
 import type { FreightLineDefinition, FreightLineTarget } from 'ssh/freight/freight-line'
 import { migrateV1FiltersToGoodsSelection } from 'ssh/freight/goods-selection-policy'
 import type { Game } from 'ssh/game/game'
@@ -75,6 +76,7 @@ export function oneShotLineUnloadGoods(line: FreightLineDefinition): readonly Go
 /** The construction structure a content object is, if it declares construction demand. */
 function constructionTarget(content: unknown): FreightLineTarget | undefined {
 	if (isConstructionSiteShell(content)) return content
+	if (content instanceof RoadConstructionSite) return content as unknown as FreightLineTarget
 	if (content instanceof UnBuiltLand && content.constructionSite && content.foundationStorage) {
 		return content
 	}
@@ -89,6 +91,9 @@ function contentProject(content: unknown): Project | undefined {
 
 /** The construction demand a structure declares (shell remaining needs, or foundation shortfall). */
 function tileConstructionNeeds(content: unknown): Partial<Record<GoodType, number>> {
+	if (content instanceof RoadConstructionSite) {
+		return content.remainingNeeds as Partial<Record<GoodType, number>>
+	}
 	const target = constructionTarget(content)
 	if (!target) return {}
 	if (isConstructionSiteShell(target)) {
@@ -149,11 +154,14 @@ export function sweepOneShotLines(game: Game): number {
 
 /** The tile coord a need declares itself at (construction shell or foundation). */
 function needSourceCoord(source: NeedSource): AxialCoord | undefined {
+	if (!('tile' in source) || !source.tile) return undefined
 	return toAxialCoord(source.tile.position) ?? undefined
 }
 
-/** The storage a need's destination accepts goods into (shell / alveolus / foundation). */
+/** The storage a need's destination accepts goods into (shell / road site / alveolus / foundation). */
 function needSourceStorage(source: NeedSource): Storage | undefined {
+	if ('kind' in source && source.kind === 'project-forward') return undefined
+	if (source instanceof RoadConstructionSite) return source.storage
 	if (isConstructionSiteShell(source)) return source.storage
 	if (source instanceof Alveolus) return source.storage
 	if (source instanceof UnBuiltLand) return source.foundationStorage
@@ -197,8 +205,10 @@ function lineUnloadRadiusZones(
  * destination (bay↔bay or named-zone) is treated conservatively as covering, the
  * same as the previous good-scoped guard.
  *
- * Deliveries are instant credits (no in-flight state), so they cannot contribute a
- * `true` here; when a physical carrier lands, in-flight delivery orders will too.
+ * Instant-credit deliveries credit the destination storage directly, so a need that
+ * no longer declares demand counts as covered on the next pass (the ledger no
+ * longer lists it). In-flight delivery orders are tracked separately via
+ * `pendingDeliveryCover` below.
  */
 function hasTransportCoveringNeed(game: Game, good: GoodType, coord: AxialCoord): boolean {
 	for (const line of game.freightLines) {
@@ -214,8 +224,18 @@ function hasTransportCoveringNeed(game: Game, good: GoodType, coord: AxialCoord)
 		if (zones.length === 0) return true
 		if (zones.some((zone) => axial.distance(zone.center, coord) <= zone.radius)) return true
 	}
+	if (pendingDeliveryCover.has(`${good}@${coord.q},${coord.r}`)) return true
 	return false
 }
+
+/**
+ * In-pass record of instant-credit deliveries (`good@q,r`). Cleared at the start of
+ * each ticker pass (and each delivery pass for direct calls). Prevents the take branch
+ * from spawning a duplicate self-haul line for a need the buy branch just credited
+ * in the same tick — but must never survive into the next pass, or a stale entry
+ * would suppress a fresh spawn for a recurring need at the same coord.
+ */
+const pendingDeliveryCover = new Set<string>()
 
 /**
  * Spawn one-shot lines for construction deficits that have an internal source and
@@ -297,13 +317,19 @@ export function trySpawnConstructionLines(game: Game, policy: SourcingPolicy): n
 
 /**
  * Order **deliveries** for construction deficits via outside carriers: buy the
- * good from the nearest/cheapest NPC settlement and credit it directly into the
- * construction site's storage. Returns the number of deliveries ordered.
+ * good from the best-ranked NPC settlement sell offer (cheapest `priceVp` first,
+ * nearest on price ties — see {@link compareSourceOffers}) and credit it directly
+ * into the construction site's storage. Returns the number of deliveries ordered.
  *
  * This is the external branch of the internality slider ("buy + outsider brings").
  * For now the outsider is an **instant credit** (no physical carrier travel yet) —
  * `spendVp(price × qty)` then `storage.addGood`. The full cost/threshold formula
  * (and a real carrier entity) is a later slice; see `plans/spontaneous-lines.md`.
+ *
+ * A `take` override (or any player line already covering the need, including a
+ * player-authored NPC trade-stop import line) suppresses the automated delivery —
+ * to choose the buying place / bring it yourself, author an import line and mark
+ * the good `take`.
  *
  * One delivery per **need** (per destination): two concurrent constructions of the
  * same good are each bought and credited in the same pass, subject to the wallet.
@@ -315,6 +341,7 @@ export function trySpawnConstructionDeliveries(
 ): number {
 	const snapshot = ledger ?? game.netDeficitLedger
 	let delivered = 0
+	pendingDeliveryCover.clear()
 	for (const [good, net] of Object.entries(snapshot) as [GoodType, NetDeficit][]) {
 		if ((net.deficit ?? 0) <= 0) continue
 		for (const need of net.needs) {
@@ -340,6 +367,7 @@ export function trySpawnConstructionDeliveries(
 			if (added <= 0) continue
 			// Charge only for what was actually credited (addGood may clip to room).
 			game.spendVp(offer.priceVp * added)
+			pendingDeliveryCover.add(`${good}@${destCoord.q},${destCoord.r}`)
 			delivered += 1
 		}
 	}
@@ -374,6 +402,10 @@ export class OneShotLineTicker extends GameObject {
 		const cooldown = this.game.transportAutomation.spawnCooldownSeconds
 		if (this.cooldownSeconds < cooldown) return
 		this.cooldownSeconds = 0
+		// Pass-scoped dedupe: drop the previous pass's instant-credit record so a
+		// stale `good@q,r` never suppresses a fresh spawn. Entries added by the
+		// delivery branch below are still seen by the take branch in this same pass.
+		pendingDeliveryCover.clear()
 		const auto = this.game.transportAutomation
 		const policy: SourcingPolicy = {
 			reserve: auto.reserve,

@@ -1,6 +1,7 @@
-import { reactive } from 'mutts'
+import { markRaw, reactive } from 'mutts'
+import { ClaimIndex } from 'ssh/board/claim-index'
 import { type RoadPatch, type RoadType, roadBorderEndpointCoords } from 'ssh/board/roads'
-import type { ProjectSourcingMode, ProjectSourcingPolicy } from 'ssh/commerce/commerce-model'
+import type { ProjectSourcing, ProjectSourcingMode } from 'ssh/commerce/commerce-model'
 import type { Game } from 'ssh/game'
 import {
 	type HivePlan,
@@ -8,7 +9,9 @@ import {
 	type HivePlanStructuralIssue,
 	type HivePlanValidationProgress,
 	hivePlanCenterOffset,
+	hivePlanCoordKey,
 	hivePlanFingerprint,
+	hivePlanNeighborOffsets,
 	hivePlanValidationRequirements,
 	mirrorHivePlanCoord,
 	rotateHivePlanCoord,
@@ -43,8 +46,8 @@ export interface Project {
 	demolitions: Array<readonly [number, number]>
 	/** Existing road segments (border midpoints) planned for demolition on commit. */
 	roadDemolitions: RoadPatch[]
-	/** Per-good sourcing policy (auto / take / buy), edited in the project detail. */
-	sourcing: ProjectSourcingPolicy
+	/** Per-good sourcing overrides (take / buy), edited in the project detail. */
+	sourcing: ProjectSourcing
 	validationProgress: HivePlanValidationProgress
 	knownnessFingerprint: string
 	archiveReason?: ProjectArchiveReason
@@ -53,15 +56,15 @@ export interface Project {
 export interface SerializedProject extends Project {}
 
 /**
- * The effective sourcing mode for a good on a project: the project's per-good
- * override, or `'auto'` (internal-first, external fallback) when unset or the
- * project is absent (spontaneous construction).
+ * The explicit sourcing override for a good on a project (`take` / `buy`), or
+ * `undefined` when unset (the transport automation then applies its internal-first
+ * + external-fallback default). `undefined` for a project-less need too.
  */
 export function projectSourcingMode(
 	project: Project | undefined,
 	good: GoodType
-): ProjectSourcingMode {
-	return project?.sourcing?.[good] ?? 'auto'
+): ProjectSourcingMode | undefined {
+	return project?.sourcing?.[good]
 }
 
 /** One live item in a project's construction progress (an alveolus entry or a road segment). */
@@ -250,11 +253,67 @@ export function groupRoadsByConnectedType(roads: readonly RoadPatch[]): RoadGrou
 	return groups
 }
 
+/** A project's placed alveoli, clustered into one connected hive. */
+export interface ProjectHiveGroup {
+	/** 1-based display index within the project ("Hive 1", "Hive 2", …). */
+	index: number
+	entries: ProjectEntry[]
+}
+
+/**
+ * Group a project's placed alveoli into **hives**: maximal connected components
+ * over hex adjacency (two entries belong to the same hive when their tiles are
+ * neighbours). This is computed after commit — it is a read-only display/grouping
+ * view, not a storage rule — and it reuses the same flood-fill the hive-plan
+ * connectivity validation performs.
+ *
+ * Each entry ends up in exactly one hive; entries are returned grouped in a
+ * deterministic order (first-seen coordinate, then neighbours).
+ */
+export function groupProjectEntriesIntoHives(entries: readonly ProjectEntry[]): ProjectHiveGroup[] {
+	const byCoord = new Map(entries.map((entry) => [hivePlanCoordKey(entry.coord), entry]))
+	const unseen = new Set(byCoord.keys())
+	const groups: ProjectHiveGroup[] = []
+	let index = 0
+	while (unseen.size > 0) {
+		const first = unseen.values().next().value as string
+		const queue = [first]
+		const members: ProjectEntry[] = []
+		unseen.delete(first)
+		for (const key of queue) {
+			const entry = byCoord.get(key)
+			if (entry) members.push(entry)
+			const [q, r] = key.split(',').map(Number)
+			for (const offset of hivePlanNeighborOffsets) {
+				const next = `${q + offset.q},${r + offset.r}`
+				if (!unseen.has(next)) continue
+				unseen.delete(next)
+				queue.push(next)
+			}
+		}
+		index += 1
+		groups.push({ index, entries: members })
+	}
+	return groups
+}
+
 @reactive
 export class ProjectCollection {
 	public projects: Project[] = []
+	/**
+	 * The runtime claim registry (see {@link ClaimIndex}). Built from working
+	 * projects' derived claims on load, kept in sync by every stage transition and
+	 * claim-affecting mutation, and the source for the `projectClaims` event
+	 * (bounding-box invalidation for NPC growth / netcode). It does **not**
+	 * cross-check projects — plans never conflict with each other.
+	 */
+	public readonly claims: ClaimIndex
 
-	constructor(private readonly game: Game) {}
+	constructor(private readonly game: Game) {
+		// Assigned in the constructor body (not a field initializer) so `game` is
+		// already bound by the parameter-property assignment.
+		this.claims = markRaw(new ClaimIndex(this.game))
+	}
 
 	get workingProjects(): Project[] {
 		return this.projects.filter((project) => project.stage === 'working')
@@ -282,13 +341,31 @@ export class ProjectCollection {
 		if (entries.length === 0) return undefined
 		const fingerprint = projectFingerprint(entries)
 		return this.projects.find(
-			(project) => project !== exceptProject && project.knownnessFingerprint === fingerprint
+			(project) =>
+				project !== exceptProject &&
+				project.stage !== 'archived' &&
+				project.knownnessFingerprint === fingerprint
 		)
 	}
 
-	createDraft(name: string, entries: readonly ProjectEntry[] = []): Project {
+	/**
+	 * A duplicate visible to the caller: the existing non-archived project plus
+	 * whether the requested patch was applied. `createDraft`/`updateDraft` never
+	 * silently discard edits — callers check `duplicate` and surface it in the UI.
+	 */
+	findVisibleDuplicate(
+		entries: readonly ProjectEntry[],
+		exceptProject?: Project
+	): Project | undefined {
+		return this.findDuplicate(entries, exceptProject)
+	}
+
+	createDraft(
+		name: string,
+		entries: readonly ProjectEntry[] = []
+	): { project: Project; duplicate?: Project } {
 		const existing = this.findDuplicate(entries)
-		if (existing) return existing
+		if (existing) return { project: existing, duplicate: existing }
 		const project = reactive({
 			name,
 			stage: 'draft' as ProjectStage,
@@ -301,7 +378,7 @@ export class ProjectCollection {
 			knownnessFingerprint: projectFingerprint(entries),
 		}) as Project
 		this.projects = [...this.projects, project]
-		return project
+		return { project }
 	}
 
 	updateDraft(
@@ -312,13 +389,13 @@ export class ProjectCollection {
 			roads?: readonly RoadPatch[]
 			demolitions?: readonly (readonly [number, number])[]
 			roadDemolitions?: readonly RoadPatch[]
-			sourcing?: ProjectSourcingPolicy
+			sourcing?: ProjectSourcing
 		}
-	): Project {
+	): { project: Project; duplicate?: Project } {
 		if (project.stage !== 'draft') throw new Error('Only draft projects can be edited')
 		const entries = patch.entries ? cloneEntries(patch.entries) : project.entries
 		const duplicate = this.findDuplicate(entries, project)
-		if (duplicate) return duplicate
+		if (duplicate) return { project: duplicate, duplicate }
 		if (patch.name !== undefined) project.name = patch.name
 		if (patch.entries) project.entries = entries
 		if (patch.roads) project.roads = cloneRoads(patch.roads)
@@ -330,13 +407,16 @@ export class ProjectCollection {
 			project.entries,
 			this.game.hivePlans.plans
 		)
-		return project
+		return { project }
 	}
 
 	/**
-	 * Commit a draft project: validate its placed entries, then freeze to `working`.
-	 * Board materialization (construction shells + roads) is handled by
-	 * {@link Game.commitProject}, which calls this as the freeze authority.
+	 * Commit a draft project: validate its placed entries, then freeze to
+	 * `working`. Board materialization (construction shells + roads) is handled by
+	 * {@link Game.commitProject}, which calls this as the freeze authority. There
+	 * is **no** cross-project conflict check — a project is validated against the
+	 * live board (via {@link Game.commitProject}'s occupancy check) + its own
+	 * entries only; plans never check each other.
 	 *
 	 * NOTE: validation/research is deferred — the `engineer.research` study variant
 	 * is not wired to projects yet (see plans/projects.md §Deferred).
@@ -348,13 +428,28 @@ export class ProjectCollection {
 		const issues = validateProjectStructure(this.game, project.entries)
 		if (issues.length > 0) return { ok: false, issues }
 		project.stage = 'working'
+		this.claims.sync(project)
 		this.game.invalidateWorkPlanning('project.commit')
 		return { ok: true, project }
+	}
+
+	/**
+	 * Permanently delete a draft or archived project. Working projects cannot be
+	 * deleted — archive them first so board claims release via `claims.sync`.
+	 */
+	remove(project: Project): boolean {
+		if (project.stage === 'working') return false
+		const index = this.projects.indexOf(project)
+		if (index < 0) return false
+		this.projects = this.projects.filter((candidate) => candidate !== project)
+		this.claims.sync(project)
+		return true
 	}
 
 	archive(project: Project, reason: ProjectArchiveReason = 'manual'): boolean {
 		project.stage = 'archived'
 		project.archiveReason = reason
+		this.claims.sync(project)
 		this.game.invalidateWorkPlanning('project.archive')
 		return true
 	}
@@ -362,6 +457,7 @@ export class ProjectCollection {
 	unarchive(project: Project): boolean {
 		project.stage = 'draft'
 		project.archiveReason = undefined
+		this.claims.sync(project)
 		return true
 	}
 
@@ -371,6 +467,7 @@ export class ProjectCollection {
 		const next = project.demolitions.filter((dem) => `${dem[0]},${dem[1]}` !== key)
 		if (next.length === project.demolitions.length) return false
 		project.demolitions = next
+		this.claims.sync(project)
 		this.game.invalidateWorkPlanning('project.demolition-done')
 		return true
 	}
@@ -383,27 +480,40 @@ export class ProjectCollection {
 		)
 		if (next.length === project.roadDemolitions.length) return false
 		project.roadDemolitions = next
+		this.claims.sync(project)
 		this.game.invalidateWorkPlanning('project.road-demolition-done')
 		return true
 	}
 
-	/** Remove a built road segment from a working project's pending build list. */
+	/** Mark a built road segment complete. The segment stays in `project.roads`
+	 * (the stable build list) so `projectProgress` keeps a stable denominator —
+	 * built state is read live from the board via `getRoadType`. */
 	removeRoad(project: Project, coord: readonly [number, number]): boolean {
 		const key = `${coord[0]},${coord[1]}`
-		const next = project.roads.filter((road) => `${road.coord[0]},${road.coord[1]}` !== key)
-		if (next.length === project.roads.length) return false
-		project.roads = next
+		const found = project.roads.some((road) => `${road.coord[0]},${road.coord[1]}` === key)
+		if (!found) return false
+		this.claims.sync(project)
 		this.game.invalidateWorkPlanning('project.road-built')
 		return true
 	}
 
 	/**
-	 * Set a project's per-good sourcing mode. Editable in `draft` and `working`
-	 * (sourcing quotas stay tunable while a project runs); `archived` is frozen.
+	 * Replace a project's sourcing overrides wholesale (take-all / buy-all). Editable
+	 * in `draft` and `working` (sourcing stays tunable while a project runs);
+	 * `archived` is frozen.
 	 */
-	setSourcingMode(project: Project, good: GoodType, mode: ProjectSourcingMode): void {
+	setSourcing(project: Project, sourcing: ProjectSourcing): void {
 		if (project.stage === 'archived') return
-		project.sourcing = { ...project.sourcing, [good]: mode }
+		project.sourcing = { ...sourcing }
+	}
+
+	/** Set (or clear) a single good's sourcing override. */
+	setSourcingMode(project: Project, good: GoodType, mode: ProjectSourcingMode | undefined): void {
+		if (project.stage === 'archived') return
+		const next = { ...project.sourcing }
+		if (mode === undefined) delete next[good]
+		else next[good] = mode
+		project.sourcing = next
 	}
 
 	serialize(): SerializedProject[] {
@@ -441,5 +551,7 @@ export class ProjectCollection {
 				},
 			})
 		) as Project[]
+		// Rebuild the runtime claim index from the loaded working projects (bulk, non-emitting).
+		this.claims.rebuild(this.projects)
 	}
 }

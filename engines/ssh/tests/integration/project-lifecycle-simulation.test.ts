@@ -129,7 +129,7 @@ describe('project lifecycle simulation', () => {
 		}
 
 		// ── Author the project ────────────────────────────────────────────────
-		const project = engine.game.projects.createDraft('Lifecycle', [])
+		const { project } = engine.game.projects.createDraft('Lifecycle', [])
 		engine.game.projects.updateDraft(project, {
 			entries: [
 				{ coord: ENTRY_A, alveolusType: 'pile' },

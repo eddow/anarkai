@@ -14,6 +14,7 @@ import type { TerrainMacroHydrologySnapshot, TerrainSectorCoord } from 'engine-t
 import { atomic, defer, Eventful, markRaw, reactive, toRaw, unreactive } from 'mutts'
 import { Alveolus } from 'ssh/board'
 import { HexBoard } from 'ssh/board/board'
+import type { ProjectClaimChange } from 'ssh/board/claim-index'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { Deposit, normalizePlantedTrees, UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import {
@@ -28,7 +29,7 @@ import { Tile, type TileTerrainState } from 'ssh/board/tile'
 import { isConstructionSiteShell } from 'ssh/build-site'
 import type { NetDeficitLedger, Reserve } from 'ssh/commerce/commerce-model'
 import { CommercialDemandTicker } from 'ssh/commerce/commercial-demand'
-import { computeNetDeficitLedger } from 'ssh/commerce/deficit-ledger'
+import { computeNetDeficitLedger, computeProjectForwardNeeds } from 'ssh/commerce/deficit-ledger'
 import {
 	createNpcSettlementTradeProfile,
 	type NpcSettlementTradeProfile,
@@ -154,10 +155,14 @@ export type GameEvents = {
 	placementPreview(
 		entries: ReadonlyArray<{
 			coord: readonly [number, number]
-			alveolusType: AlveolusType
+			alveolusType?: AlveolusType
 			variant?: string
 			/** Non-empty when this tile collides (water, existing alveolus, other project, …). */
 			blocked?: string
+			/** Non-empty when this pending tile is refused without collision (deadlock/partition). */
+			invalid?: string
+			/** Non-empty when this tile is a walled-in victim beside the footprint. */
+			inaccessible?: string
 			/** true = pending (hover) placement; false/undefined = already-placed project footprint. */
 			pending?: boolean
 		}>,
@@ -166,6 +171,7 @@ export type GameEvents = {
 	): void
 	placementPreviewClear(): void
 	roadsChanged(coords: AxialCoord[]): void
+	projectClaims(changes: readonly ProjectClaimChange[]): void
 }
 export type GamePresentationEvent =
 	| { type: 'storage.changed'; owner: GameObject }
@@ -899,6 +905,10 @@ export class Game extends Eventful<GameEvents> {
 		const issues = validateProjectStructure(this, project.entries)
 		if (issues.length > 0) return { ok: false, issues }
 
+		// Conflict + occupancy checks: `ProjectCollection.commit` re-checks claims as
+		// the freeze authority, but the board occupancy check lives here — fail fast
+		// before any write.
+
 		// Tiles planned for demolition are available for construction (bulldozed first).
 		const demolitionKeys = new Set(project.demolitions.map((dem) => `${dem[0]},${dem[1]}`))
 
@@ -940,9 +950,9 @@ export class Game extends Eventful<GameEvents> {
 	/**
 	 * Materialize a single pending road segment as a {@link RoadConstructionSite} on its
 	 * anchor tile. When the anchor tile is empty `UnBuiltLand` the site is created there;
-	 * when it already hosts this segment's site it is a no-op (returns `true`). If the
-	 * anchor cannot host a site (e.g. an occupied tile), the segment is built instantly
-	 * as a fallback and returns `true` so it can be dropped from `project.roads`.
+	 * when it already hosts this segment's site it is a no-op (returns `true`). When the
+	 * anchor is occupied the segment stays pending (returns `true` so the sweep retries
+	 * once the anchor frees) — never instant-built, so roads always cost materials.
 	 * Returns `false` only when the segment is already built on the board.
 	 */
 	public materializeRoadSite(project: Project, road: RoadPatch): boolean {
@@ -960,25 +970,21 @@ export class Game extends Eventful<GameEvents> {
 			return true
 		}
 
-		// Degenerate case (anchor tile is occupied, e.g. a freight bay): build instantly.
-		this.hex.setRoadType({ q: road.coord[0], r: road.coord[1] }, road.type)
+		// Anchor occupied (e.g. a freight bay or another site): stay pending until it frees.
 		return true
 	}
 
 	/**
-	 * Sweep all working projects' pending roads, materializing (or instant-building)
-	 * any whose anchor tile is now free. Idempotent; called on commit and whenever a
-	 * road site finalizes and frees its anchor tile.
+	 * Sweep all working projects' pending roads, materializing any whose anchor tile
+	 * is now free. Idempotent; called on commit and whenever a road site finalizes
+	 * and frees its anchor tile. `project.roads` is the stable build list — built
+	 * segments stay listed so `projectProgress` keeps a stable denominator.
 	 */
 	public materializePendingRoadSites(): void {
 		for (const project of this.projects.workingProjects) {
 			for (const road of project.roads) {
 				this.materializeRoadSite(project, road)
 			}
-			// Drop any segment that was built instantly (no construction site needed).
-			project.roads = project.roads.filter(
-				(road) => this.hex.getRoadType({ q: road.coord[0], r: road.coord[1] }) === undefined
-			)
 		}
 		this.invalidateWorkPlanning('project.road-sites')
 	}
@@ -1063,16 +1069,25 @@ export class Game extends Eventful<GameEvents> {
 				continue
 			}
 			if (content instanceof Alveolus) {
-				items.push({
-					kind: 'alveolus',
-					label,
-					coord: entry.coord,
-					state: 'done',
-					applied: 1,
-					total: 1,
-					remainingNeeds: {},
-				})
-				continue
+				// Only the planned type/variant counts as done — a foreign or stale
+				// alveolus (e.g. a deferred demolition tile not yet bulldozed) is pending.
+				const builtType = (content as { resourceName?: unknown }).resourceName
+				const builtVariant = (content as { variant?: unknown }).variant
+				if (
+					builtType === entry.alveolusType &&
+					(builtVariant ?? undefined) === (entry.variant ?? undefined)
+				) {
+					items.push({
+						kind: 'alveolus',
+						label,
+						coord: entry.coord,
+						state: 'done',
+						applied: 1,
+						total: 1,
+						remainingNeeds: {},
+					})
+					continue
+				}
 			}
 			items.push({
 				kind: 'alveolus',
@@ -1103,6 +1118,7 @@ export class Game extends Eventful<GameEvents> {
 			const site = anchor?.content
 			if (
 				site instanceof RoadConstructionSite &&
+				site.project === project &&
 				site.coord[0] === road.coord[0] &&
 				site.coord[1] === road.coord[1]
 			) {
@@ -1138,7 +1154,18 @@ export class Game extends Eventful<GameEvents> {
 				completed += Math.max(0, Math.min(1, item.applied / item.total))
 			}
 		}
-		return { items, completed, total: items.length, missingGoods }
+		const progress = { items, completed, total: items.length, missingGoods }
+		// Auto-archive fully-built projects (releases claims via `archive` → `sync`).
+		if (project.stage === 'working' && items.length > 0 && completed >= items.length) {
+			this.projects.archive(project, 'obsolete')
+		}
+		return progress
+	}
+
+	/** Whether every entry and road in the project is built (board-derived). */
+	public isProjectComplete(project: Project): boolean {
+		const progress = this.projectProgress(project)
+		return progress.total > 0 && progress.completed >= progress.total
 	}
 
 	/**
@@ -1210,7 +1237,12 @@ export class Game extends Eventful<GameEvents> {
 	get netDeficitLedger(): NetDeficitLedger {
 		const end = profile.commerce.begin?.('netDeficitLedger')
 		try {
-			return computeNetDeficitLedger(this.hex.tiles)
+			const forwardNeeds = computeProjectForwardNeeds(
+				this.projects.workingProjects,
+				(coord) => this.hex.getTile({ q: coord[0], r: coord[1] })?.content,
+				(coord) => this.hex.getRoadType({ q: coord[0], r: coord[1] })
+			)
+			return computeNetDeficitLedger(this.hex.tiles, forwardNeeds)
 		} finally {
 			end?.()
 		}

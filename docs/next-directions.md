@@ -76,8 +76,10 @@ core is implemented, tested, and type-clean; the *gameplay* wiring is the fronti
 
 **What is not landed** is the *gameplay* half of that spine: the **physical carrier** behind delivery
 (the buy+credit is instant — no outside-carrier travel yet), the `surplus` (producer-export) half of
-the ledger, operating demand in the bill, the frontier fade, and **growth/shrinkage** (triangular
-capacity). The spontaneous commercial spawner v1 and the plot study **are** landed (see below).
+the ledger, the frontier fade, and **growth/shrinkage** (triangular capacity). Operating demand
+(transform inputs / storage buffers) is a **live-hive ledger** concern — it is explicitly out of scope
+for the construction project's bill. The spontaneous commercial spawner v1 and the plot study **are**
+landed (see below).
 
 ## Current frontier — planner scalability (emergent planning)
 
@@ -268,10 +270,10 @@ behavioral core** (consume lean work ads, materialize only the winner, retire th
 
 The structural spine is drafted (see "Where we are"); the remaining *gameplay* work here is:
 wire a live **`deficit` stop** that imports a shortfall (the consumer of the ledger + sourcing), add the
-**`surplus`** (producer-export) half of the ledger, fold **operating demand** (transform inputs / storage
-buffers) into the bill, make **`Hive.needs`** feed the ledger (today the ledger reads construction shells
-directly), and apply the **frontier fade** board-side. This is the spine every other direction plugs
-into.
+**`surplus`** (producer-export) half of the ledger, make **`Hive.needs`** feed the ledger (today the
+ledger reads construction shells directly), and apply the **frontier fade** board-side. (Operating
+demand — transform inputs / storage buffers — belongs to the live hive, never the construction
+project's bill.) This is the spine every other direction plugs into.
 
 ### 3. Projects (supporting, in parallel)
 

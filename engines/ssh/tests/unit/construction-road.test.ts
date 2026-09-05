@@ -53,7 +53,7 @@ describe('road construction helpers', () => {
 		game.ticker.stop()
 		try {
 			const tile = game.hex.getTile({ q: 0, r: 0 })!
-			const project = game.projects.createDraft('Roads', [])
+			const { project } = game.projects.createDraft('Roads', [])
 			// Border (0,0)-(0,1): midpoint (0, 0.5), anchor (0,0).
 			const site = new RoadConstructionSite(tile, [0, 0.5], 'path', project)
 			game.hex.setTileContent(tile, site)
