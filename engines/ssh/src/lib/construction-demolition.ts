@@ -117,7 +117,7 @@ export function demolishStructure(tile: Tile): void {
 	if (!content || content instanceof UnBuiltLand) return
 
 	const coord = toAxialCoord(tile.position)
-	traces.work.log?.('work.demolish', {
+	traces.work({ tile }).log?.('work.demolish', {
 		contentType: content.constructor?.name,
 		tileQ: coord?.q,
 		tileR: coord?.r,

@@ -390,6 +390,7 @@ export function buildGameDebugDump(game: Game, options: BuildGameDebugDumpOption
 		),
 		vehicles: [...game.vehicles].map((vehicle) => summarizeVehicleForDebug(vehicle, logsCount)),
 		freightLines: [...game.freightLines].map(summarizeFreightLineForDebug),
+		boardQueue: game.hex.queueDiagnostics(),
 		saveState: options.includeSaveState ? game.saveGameData() : undefined,
 	}
 }

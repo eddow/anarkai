@@ -329,7 +329,7 @@ Legend: ✅ done · ⏳ partial · ❌ TODO.
 5. ✅ **F5**: `zone:` uid → direct ZoneObject — `ZoneObject` now holds the `ZoneDefinition` by reference; `zoneObjectUid`/`ZONE_UID_PREFIX` removed; paint token is name-keyed (`zone:${name}`).
 6. ✅ **F6**: `vehicleUid` → Vehicle reference — `InTransitReservation.vehicle`, `FreightLineVehicleStatus.vehicle`, `VehicleDockConveyJob.vehicle`, `WorkPlan.vehicle?` all object refs; `reserveInTransit`/`cancelVehicleReservationsOnSites` keyed by `WeakMap<Vehicle, …>`. `SerializedDockRequest.vehicleUid` remains (serialization only).
 7. ✅ **F7**: `lineId` → line reference — `WorkPlan.line?: FreightLineDefinition`; `summarizeJobPlanForDiagnostics` reads `.line` and emits `debugObjectId(line)` as display. `lineId` remains only as legacy trace/display strings.
-8. ✅ **F8**: `debugObjectId` lookups → object identity — `HardListSearchPicker.onSelect` passes the item; assign/unassign handlers take the object directly; `debugObjectId` remains only for `data-test-*` attributes and debug dumps.
+8. ✅ **F8**: `debugObjectId` lookups → object identity — `AssignedLinksPicker.onSelect` passes the item; assign/unassign handlers take the object directly; `debugObjectId` remains only for `data-test-*` attributes and debug dumps.
 9. ✅ **F9**: `interactiveLogObject(uid)` registry → delete — replaced with `WeakSet` (`isInteractiveLogObject`).
 10. ✅ **F10**: `.uid` display → `debugObjectId` — `InspectorSelectableObject` has no `.uid`.
 11. ✅ **F11**: `hivePlanIndex` → plan object ref — `BuildAlveolus.hivePlan: HivePlan`; `HivePlanCollection.updateDraft/sendToValidation/archive/unarchive` take the plan object; `ValidateHivePlanJob.plan` is an object. `hivePlanIndex` remains **only** in the serialized patches (index = array position per principle #3).
@@ -348,7 +348,7 @@ Legend: ✅ done · ⏳ partial · ❌ TODO.
 | F5 `zoneObjectUid` | ✅ Done | `ZoneObject.definition` (object ref); `zoneObjectUid`/`ZONE_UID_PREFIX` deleted; `findZoneByName`/`removeZoneDefinition` added |
 | F6 `vehicleUid` | ✅ Done | `InTransitReservation.vehicle`, `FreightLineVehicleStatus.vehicle`, `WorkPlan.vehicle?` (object refs); `SerializedDockRequest.vehicleUid` is serialization-only |
 | F7 `lineId` | ✅ Done | `WorkPlan.line?: FreightLineDefinition`; diagnostics reads `.line` → `debugObjectId` display |
-| F8 `debugObjectId` lookups | ✅ Done | `HardListSearchPicker.onSelect(item)`; Freight/Vehicle assign/unassign by object ref; `debugObjectId` display-only |
+| F8 `debugObjectId` lookups | ✅ Done | `AssignedLinksPicker.onSelect(item)`; Freight/Vehicle assign/unassign by object ref; `debugObjectId` display-only |
 | F9 `interactiveLogObject(uid)` | ✅ Done | `game/object.ts` → `WeakSet` + `isInteractiveLogObject` |
 | F10 `.uid` display | ✅ Done | `InspectorSelectableObject` (no `.uid`) |
 | F11 `hivePlanIndex` | ✅ Done | `BuildAlveolus.hivePlan` (object ref); `ValidateHivePlanJob.plan`; `hivePlanIndex` only in serialized patches |

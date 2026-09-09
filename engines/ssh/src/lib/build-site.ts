@@ -118,6 +118,10 @@ export function reserveInTransit(
 	} else {
 		goodMap.set(goodType, { vehicle, goodType, quantity, expiresAtTick })
 	}
+	// `effectiveRemainingNeeds` (which feeds the memoized freight stop measures) changes
+	// here, so the work-planning cache must refresh or zone-browse and dock candidates
+	// diverge on the same site (stale route need vs live effective need).
+	shell.tile.game.invalidateWorkPlanning('in-transit.reservation')
 }
 
 /** Cancel all in-transit reservations from `vehicle` on this shell. */
@@ -131,6 +135,7 @@ export function cancelVehicleInTransitReservations(
 	if (!goodMap) return 0
 	const count = goodMap.size
 	vehicleMap.delete(vehicle)
+	shell.tile.game.invalidateWorkPlanning('in-transit.cancel-vehicle')
 	return count
 }
 
@@ -140,6 +145,7 @@ export function cancelAllInTransitReservations(shell: ConstructionSiteShell): nu
 	if (!map) return 0
 	const count = map.size
 	map.clear()
+	shell.tile.game.invalidateWorkPlanning('in-transit.cancel-all')
 	return count
 }
 
@@ -180,7 +186,7 @@ export function cleanupStaleInTransitReservations(
 			goodMap.delete(res.goodType)
 			if (goodMap.size === 0) vehicleMap.delete(res.vehicle)
 		}
-		traces.vehicle.warn?.('inTransit.stale', {
+		traces.vehicle(res.vehicle).warn?.('inTransit.stale', {
 			siteUid: debugObjectId(shell) ?? '',
 			vehicleUid: debugObjectId(res.vehicle) ?? '',
 			goodType: res.goodType,
@@ -189,6 +195,7 @@ export function cleanupStaleInTransitReservations(
 			nowTick,
 		})
 	}
+	shell.tile.game.invalidateWorkPlanning('in-transit.stale-cleanup')
 	return stale.length
 }
 

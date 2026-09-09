@@ -78,7 +78,7 @@ export class UnBuiltLand extends TileContent {
 			this.game.invalidateWorkPlanning('unbuilt-land.foundation-storage')
 		)
 		const coord = toAxialCoord(this.tile.position)
-		traces.work.log?.('work.site.set', {
+		traces.work({ tile: this.tile }).log?.('work.site.set', {
 			site,
 			tileQ: coord?.q,
 			tileR: coord?.r,
@@ -113,7 +113,7 @@ export class UnBuiltLand extends TileContent {
 				const phase = this.tile.isBurdened ? 'planned' : 'foundation'
 				if (this.constructionSite.phase === phase) return
 				this.constructionSite.phase = phase
-				traces.work.log?.('work.site.phase', {
+				traces.work({ tile: this.tile }).log?.('work.site.phase', {
 					site: this.site,
 					phase,
 					tileQ: coord?.q,

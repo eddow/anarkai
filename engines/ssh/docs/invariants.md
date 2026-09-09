@@ -29,7 +29,7 @@ document the transition that owns it.
 Use stable dot-separated identifiers in diagnostics:
 
 ```ts
-traces.vehicle.warn?.('[vehicle.advertisedJobs] loaded docked vehicle has no advertised job', {
+traces.vehicle(vehicle).warn?.('[vehicle.advertisedJobs] loaded docked vehicle has no advertised job', {
 	invariant: 'freight.vehicle.docked.loaded-has-advertisement',
 	vehicleUid: debugObjectId(vehicle),
 })
@@ -39,7 +39,12 @@ Stable identifiers let tests, DevTools, and agents connect a runtime symptom to 
 was violated.
 
 Trace channels should remain domain-oriented (`vehicle`, `position`, `convey`, `work`, etc.).
-Invariants are connected to a trace channel when that channel's `assert` method is connected:
+`traces.<channel>(subject).assert?.(condition, message, payload?)` is fatal when the
+channel's `assert` verb is enabled: it records an `assert failure` row and
+throws `AssertionError`. When disabled the method is `undefined`, so `?.`
+skips evaluating the condition entirely. Use the bare `assert(...)` helper
+wherever TypeScript narrowing is needed (`traces` proxy calls never narrow —
+TS2775). Invariants stay connected only while `assert` is enabled:
 
 ```ts
 traces.vehicle.invariant?.['docked.loaded-has-advertisement'](vehicle)

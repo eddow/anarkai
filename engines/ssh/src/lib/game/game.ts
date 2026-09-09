@@ -117,7 +117,9 @@ import { SimulationLoop } from 'ssh/utils/loop'
 import { LCG } from 'ssh/utils/numbers'
 import { toAxialCoord } from 'ssh/utils/position'
 import * as gameContent from '../../../assets/game-content'
-import { assert, profile, setTraceTimeSource } from '../dev/debug.ts'
+import { profile, setTraceTimeSource, traces } from '../dev/debug.ts'
+
+import { watch } from '../dev/watch.ts'
 import { GameplayFrontierController } from './gameplay-frontier'
 import type { GameObject, InteractiveGameObject } from './object'
 import {
@@ -1788,7 +1790,14 @@ export class Game extends Eventful<GameEvents> {
 			try {
 				const { wasmLoadReady } = await import('engine-terrain')
 				await wasmLoadReady
-			} catch {}
+			// A failed WASM load falls back to JS terrain generation — still worth
+			// surfacing at warn level so a silently-slow fallback never hides.
+			} catch (e) {
+				traces.terrain.warn?.(
+					'[game] WASM terrain module failed to load; falling back to JS terrain generation',
+					e
+				)
+			}
 			// Initialize base RNG with terrainSeed so everything is reproducible
 			;(this as any).rng = LCG('gameSeed', this.generationOptions.terrainSeed)
 			// Expose RNG to global for script helpers
@@ -1797,7 +1806,10 @@ export class Game extends Eventful<GameEvents> {
 			try {
 				this.emit('gameStart')
 			} catch (e) {
-				console.error('Error during gameStart emission:', e)
+				// A listener throwing here must surface — swallowing it would leave
+				// characters without their first action and no trace of why.
+				traces.scriptEngine.error?.('Error during gameStart emission:', e)
+				throw e
 			}
 
 			this.residentialDemandTicker?.destroy()
@@ -2654,7 +2666,10 @@ export class Game extends Eventful<GameEvents> {
 			if (patches.roads) this.applyRoadPatches(patches.roads)
 			await populationLoad
 		} catch (error) {
-			console.error('Generation failed:', error)
+			// World generation must surface: a half-built board with no trace is
+			// undebuggable, so record at error level and rethrow.
+			traces.terrain.error?.('Generation failed:', error)
+			throw error
 		}
 	}
 	/** Asynchronously (re)generate the world from `config` and `patches` (with optional save restore). */
@@ -2744,7 +2759,8 @@ export class Game extends Eventful<GameEvents> {
 			if (patches.vehicles?.length) this.applyVehiclePatches(patches.vehicles)
 			if (patches.roads) this.applyRoadPatches(patches.roads)
 		} catch (error) {
-			console.error('Async generation failed:', error)
+			traces.terrain.error?.('Async generation failed:', error)
+			throw error
 		}
 	}
 	/** Emit an object-click event from the pixi/renderer input path. */
@@ -3073,7 +3089,7 @@ export class Game extends Eventful<GameEvents> {
 				alv.hive.working = hive.working ?? true
 				tile.asGenerated = false
 			}
-			assert(hiveInstance, 'Alveolus building on load')
+			traces.scriptEngine.assert?.(!!hiveInstance, 'Alveolus building on load')
 			// Restore hive-level configurations
 			if (hive.name && hiveConfigurations?.[hive.name] && hiveInstance) {
 				for (const [alvType, config] of Object.entries(hiveConfigurations[hive.name])) {
@@ -3254,6 +3270,7 @@ export class Game extends Eventful<GameEvents> {
 					servedLines,
 					entry.name
 				)
+				if (entry.watched) watch(vehicle)
 				for (const [goodType, qty] of Object.entries(entry.goods ?? {})) {
 					vehicle.storage.addGood(goodType as GoodType, qty as number)
 				}
@@ -3763,13 +3780,21 @@ export class Game extends Eventful<GameEvents> {
 		this.oneShotLineTicker = undefined
 		try {
 			this.vehicles.clear()
-		} catch {}
+		} catch (error) {
+			// Teardown is best-effort: a partially-destroyed world must not block `destroy()`.
+			// Still surfaced at warn level so a broken teardown never hides silently.
+			traces.scriptEngine.warn?.('[game] destroy: failed to clear vehicles', error)
+		}
 		try {
 			this.population.clear()
-		} catch {}
+		} catch (error) {
+			traces.scriptEngine.warn?.('[game] destroy: failed to clear population', error)
+		}
 		try {
 			this.hex.reset()
-		} catch {}
+		} catch (error) {
+			traces.scriptEngine.warn?.('[game] destroy: failed to reset hex board', error)
+		}
 		this.tickedObjects.clear()
 		this.pendingInteractiveRegistrations.clear()
 		this.pendingInteractiveChanges.clear()

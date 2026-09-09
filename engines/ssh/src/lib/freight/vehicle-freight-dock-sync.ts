@@ -20,7 +20,7 @@ export function freightVehicleDockBay(vehicle: Vehicle): FreightBayAlveolus | un
 	})
 	const content = tile?.content
 	if (!(content instanceof FreightBayAlveolus)) {
-		traces.vehicle.warn?.('[dock.sync] docked vehicle has no freight bay', {
+		traces.vehicle(vehicle).warn?.('[dock.sync] docked vehicle has no freight bay', {
 			lineId: debugObjectId(svc.line),
 			stopIndex: svc.line.stops.indexOf(svc.stop),
 			anchor: svc.stop.anchor.coord,
@@ -39,7 +39,7 @@ export function ensureFreightVehicleDockRegistration(
 	if (!bay) return undefined
 	const existing = bay.hive.freightVehicleDockFor(vehicle)
 	if (existing?.bay === bay) return bay
-	traces.vehicle.warn?.('[dock.sync] repairing missing dock registration', {
+	traces.vehicle(vehicle).warn?.('[dock.sync] repairing missing dock registration', {
 		bay: bay.name,
 		hadRegistration: !!existing,
 		registeredBay: existing?.bay.name,
@@ -58,7 +58,7 @@ export function syncFreightVehicleDockRegistration(vehicle: Vehicle): void {
 		hive?.unregisterFreightVehicleDock(vehicle)
 	}
 	if (!bay) {
-		traces.vehicle.log?.('[dock.sync] no dock registration', {
+		traces.vehicle(vehicle).log?.('[dock.sync] no dock registration', {
 			isDocked: vehicle.isDocked,
 			serviceKind: isVehicleLineService(vehicle.service)
 				? 'line'
@@ -72,14 +72,14 @@ export function syncFreightVehicleDockRegistration(vehicle: Vehicle): void {
 	if (existing?.bay === bay) {
 		bay.hive.invalidateConveyPlanning('dock.lifecycle')
 		bay.hive.invalidateAdvertisements([existing, bay], 'dock.lifecycle')
-		traces.vehicle.log?.('[dock.sync] refreshed vehicle dock', {
+		traces.vehicle(vehicle).log?.('[dock.sync] refreshed vehicle dock', {
 			bay: bay.name,
 			stock: { ...vehicle.storage.stock },
 			virtualGoodsCount: vehicle.storage.virtualGoodsCount,
 		})
 		return
 	}
-	traces.vehicle.log?.('[dock.sync] registered vehicle dock', {
+	traces.vehicle(vehicle).log?.('[dock.sync] registered vehicle dock', {
 		bay: bay.name,
 		stock: { ...vehicle.storage.stock },
 		virtualGoodsCount: vehicle.storage.virtualGoodsCount,

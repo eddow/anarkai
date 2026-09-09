@@ -3,8 +3,9 @@ import { inert, reactive, unwrap } from 'mutts'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import type { Tile } from 'ssh/board/tile'
-import { profile } from 'ssh/dev/debug'
+import { assert, profile } from 'ssh/dev/debug'
 import { debugObjectId, debugRawObjectId } from 'ssh/dev/debug-object-id'
+import { isWatched, watch } from 'ssh/dev/watch'
 import { assertVehicleOperationConsistency } from 'ssh/freight/vehicle-invariants'
 import { releaseVehicleFreightWorkOnPlanInterrupt } from 'ssh/freight/vehicle-run'
 import {
@@ -55,7 +56,8 @@ import {
 	readCharacterEvolutionRate,
 	residentialRecoveryRates,
 } from '../../../assets/constants'
-import { assert, traceIdleDiagnosis, traces } from '../dev/debug.ts'
+import { AssertionError, traceIdleDiagnosis, traces } from '../dev/debug.ts'
+
 import { traceProjection } from '../dev/trace.ts'
 import type { Vehicle } from './vehicle/entity'
 
@@ -161,6 +163,8 @@ export interface CharacterState {
 	operates?: Vehicle
 	driving: boolean
 	scripts: unknown
+	/** Dev flag: focus this character for entity-scoped tracing (see `ssh/dev/watch`). */
+	watched?: boolean
 }
 
 /** Serialized character — derived from {@link CharacterState}; references become indexes. */
@@ -390,20 +394,22 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 				// 2000 px/s is ~38 hex/s at tileSize=30 — far beyond any
 				// legitimate walk speed even with 2× clock jitter margin.
 				const maxAllowed = Math.max(1, 2000 * ds * 2)
-				assert(
-					moved <= maxAllowed + 1e-3,
-					`Character.position: teleport — moved ${moved.toFixed(1)} px ` +
+				if (!(moved <= maxAllowed + 1e-3)) {
+					const message =
+						`Character.position: teleport — moved ${moved.toFixed(1)} px ` +
 						`in ${ds.toFixed(4)} s (max ${maxAllowed.toFixed(1)} px) ` +
 						`from ${axial.key(axial.round(toAxialCoord(this._lastPositionBeforeSet)!))} ` +
 						`to ${axial.key(axial.round(toAxialCoord(value)!))}`
-				)
+					assert(false, message)
+					throw new AssertionError(message)
+				}
 			}
 		}
 		this._lastPositionBeforeSet = { ...value }
 		this._lastPositionTime = this.game.clock.virtualTime
 		// ── End teleport assertion ────────────────────────────────────────
 
-		traces.position.log?.(
+		traces.position(this).log?.(
 			'character.position.set.before',
 			this.positionTracePayload('before', value)
 		)
@@ -417,11 +423,11 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 			// to re-run and re-track the new proxy every frame.
 			this._footPosition = reactive(value)
 			this._positionVersion.n++
-			traces.position.log?.('character.position.set.after', this.positionTracePayload('after'))
+			traces.position(this).log?.('character.position.set.after', this.positionTracePayload('after'))
 			return
 		}
 		if (!this.operates) {
-			traces.position.warn?.(
+			traces.position(this).warn?.(
 				'character.position.set.recoverFootPositionWithoutVehicle',
 				this.positionTracePayload('recover-foot-position', value)
 			)
@@ -429,7 +435,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 			if (changedTile) {
 				this._tile = this.game.hex.getTile(nextCoord)!
 			}
-			traces.position.log?.('character.position.set.after', this.positionTracePayload('after'))
+			traces.position(this).log?.('character.position.set.after', this.positionTracePayload('after'))
 			return
 		}
 		this.operates.position = value
@@ -438,7 +444,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		if (changedTile) {
 			this._tile = this.operates.effectiveTile
 		}
-		traces.position.log?.('character.position.set.after', this.positionTracePayload('after'))
+		traces.position(this).log?.('character.position.set.after', this.positionTracePayload('after'))
 	}
 
 	/** Clock-driven needs update interval in virtual seconds. */
@@ -516,7 +522,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		const previousTile = this._tile
 		this._footPosition = reactive({ ...position })
 		if (axial.key(toAxialCoord(previousTile.position)!) === axial.key(coord)) {
-			traces.position.log?.('character.tile.set.regainFootPosition.same', {
+			traces.position(this).log?.('character.tile.set.regainFootPosition.same', {
 				uid: debugObjectId(this),
 				name: this.name,
 				fromTilePos: positionDebugCoord(previousTile.position),
@@ -529,7 +535,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		if (queueStep) {
 			if (!this.stepExecutor) {
 				this.stepExecutor = queueStep.onFulfilled(() => {
-					traces.position.log?.('character.tile.set.regainFootPosition.queueFulfilled', {
+					traces.position(this).log?.('character.tile.set.regainFootPosition.queueFulfilled', {
 						uid: debugObjectId(this),
 						name: this.name,
 						fromTilePos: positionDebugCoord(previousTile.position),
@@ -540,7 +546,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 			}
 			return
 		}
-		traces.position.log?.('character.tile.set.regainFootPosition', {
+		traces.position(this).log?.('character.tile.set.regainFootPosition', {
 			uid: debugObjectId(this),
 			name: this.name,
 			fromTilePos: positionDebugCoord(previousTile.position),
@@ -555,7 +561,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		if (v.service) {
 			v.endService()
 		}
-		traces.vehicle.log?.('vehicleJob.offboard', {
+		traces.vehicle(this.operates ?? this).log?.('vehicleJob.offboard', {
 			character: this.name,
 			characterUid: debugObjectId(this),
 		})
@@ -573,7 +579,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		const v = this.operates
 		assert(v, 'stepOffVehicleKeepingControl requires an operated vehicle')
 		this.regainFootPosition(v.effectivePosition)
-		traces.vehicle.log?.('vehicleJob.offboard.keepControl', {
+		traces.vehicle(this.operates ?? this).log?.('vehicleJob.offboard.keepControl', {
 			characterUid: debugObjectId(this),
 		})
 		assertVehicleOperationConsistency(v, this)
@@ -593,7 +599,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		const v = this.operates
 		assert(v, 'disengageVehicleKeepingService requires an operated vehicle')
 		v.releaseOperator(this)
-		traces.vehicle.log?.('vehicleJob.offboard.keepService', {
+		traces.vehicle(this.operates ?? this).log?.('vehicleJob.offboard.keepService', {
 			characterUid: debugObjectId(this),
 		})
 		this.regainFootPosition(this._footPosition ?? v.effectivePosition)
@@ -632,7 +638,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		const fromPos = this.driving && this.operates ? this.position : this._tile.position
 		const queue = this.game.hex.moveCharacter(this, tile.position, fromPos)
 		const commit = () => {
-			traces.position.log?.('character.tile.set.stepOn', {
+			traces.position(this).log?.('character.tile.set.stepOn', {
 				uid: debugObjectId(this),
 				name: this.name,
 				fromTilePos: positionDebugCoord(this._tile.position),
@@ -1081,7 +1087,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		if (!match) return false
 		if (isVehicleFreightJob(match.job)) {
 			const pos = toAxialCoord(this.position)
-			traces.vehicle.log?.('vehicleJob.selected', {
+			traces.vehicle(this).log?.('vehicleJob.selected', {
 				character: this.name,
 				characterUid: debugObjectId(this),
 				...vehicleFreightJobTracePayload(match.job),
@@ -1091,7 +1097,7 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 		} else {
 			const pos = toAxialCoord(this.position)
 			const target = toAxialCoord(match.targetTile.position)
-			traces.work.log?.('work.selected', {
+			traces.work({ character: this }).log?.('work.selected', {
 				character: this.name,
 				characterUid: debugObjectId(this),
 				job: match.job.job,
@@ -1347,12 +1353,12 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 	private releaseVehicleBeforeNonVehicleActivity(kind: NextActivityKind): void {
 		if (!this.operates) return
 		if (this.isVehicleQueuing) {
-			traces.vehicle.log?.('vehicle operator released before non-vehicle activity (queuing)', {
+			traces.vehicle(this.operates ?? this).log?.('vehicle operator released before non-vehicle activity (queuing)', {
 				characterUid: debugObjectId(this),
 				activityKind: kind,
 			})
 		} else {
-			traces.vehicle.warn?.('vehicle operator released before non-vehicle activity (moving)', {
+			traces.vehicle(this.operates ?? this).warn?.('vehicle operator released before non-vehicle activity (moving)', {
 				characterUid: debugObjectId(this),
 				activityKind: kind,
 			})
@@ -1530,6 +1536,7 @@ export function serializeCharacters(
 		operates: character.operates ? indexes.vehicles.toIndex(character.operates) : undefined,
 		driving: character.driving,
 		scripts: (character as any).getScriptState(indexes),
+		...(isWatched(character) ? { watched: true } : {}),
 	}))
 }
 
@@ -1576,6 +1583,7 @@ export function deserializeCharacters(
 			if (row.scripts) {
 				;(char as any).restoreScriptState(row.scripts, indexes)
 			}
+			if (row.watched) watch(char)
 			return char
 		})
 	)

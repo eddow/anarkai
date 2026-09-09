@@ -287,4 +287,22 @@ describe('StorageAlveolus Configuration', () => {
 			priority: '2-use',
 		})
 	})
+
+	it('a buffered specific storage below its keep target demands refill, not provide', () => {
+		const alveolus = withHive(new StorageAlveolus(mockTile, warehouseDefinition, 'warehouse'))
+		alveolus.working = true
+		alveolus.storageBuffers = { wood: 2 }
+
+		// Below its 2-wood keep target (1 < 2) the pile still has reserve to refill,
+		// so it must advertise DEMAND (1-buffer) — that is what makes `hive.needs.wood`
+		// non-empty and lets the gather line transport wood into the hive. Advertising
+		// `provide 2-use` here hides the refill need: when the sawmill is idle the hive
+		// signals no wood demand and wood stays in the loading zone ("room in hive,
+		// no transport").
+		alveolus.storage.addGood('wood', 1)
+		expect(alveolus.workingGoodsRelations.wood).toMatchObject({
+			advertisement: 'demand',
+			priority: '1-buffer',
+		})
+	})
 })

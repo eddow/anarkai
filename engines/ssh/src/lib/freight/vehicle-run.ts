@@ -48,7 +48,8 @@ import { axial } from 'ssh/utils/axial'
 import { GenerationCache } from 'ssh/utils/cell'
 import { sameRef } from 'ssh/utils/identity'
 import { axialDistance, type Position, toAxialCoord } from 'ssh/utils/position'
-import { assert, profile, traces } from '../dev/debug.ts'
+import { profile, traces } from '../dev/debug.ts'
+
 
 /**
  * `parkVehicle` is only meaningful when the current hex matters for the board independently of the
@@ -637,8 +638,9 @@ function advanceVehicleToNextLineStopOrEnd(
 		// Ending service here would strand any remaining goods on the tile. Keep the service alive
 		// so the planner can rediscover a drop target on the next pass (e.g. a construction site
 		// that transitions from foundation to shell mid-route and suddenly demands the surplus).
+		const sink = traces.vehicle(vehicle)
 		if (vehicleStorageStockCount(vehicle) > 0) {
-			traces.vehicle.log?.('vehicleJob.line.emptyStop', {
+			sink.log?.('vehicleJob.line.emptyStop', {
 				lineId: debugObjectId(line),
 				stopIndex: line.stops.indexOf(stop),
 				reason: 'line-finished-with-surplus-stock',
@@ -648,7 +650,7 @@ function advanceVehicleToNextLineStopOrEnd(
 			})
 			return true
 		}
-		traces.vehicle.log?.('vehicleJob.line.emptyStop', {
+		sink.log?.('vehicleJob.line.emptyStop', {
 			lineId: debugObjectId(line),
 			stopIndex: line.stops.indexOf(stop),
 			reason: 'line-finished-empty',
@@ -696,10 +698,11 @@ export function advanceVehicleLineServicePastEmptyStops(
 		}
 
 		if ('anchor' in stop) {
+			const sink = traces.vehicle(vehicle)
 			if (!vehicle.isDocked) {
 				if (!line.cyclic || lastSkippedStopIndex < 0) return
 				if (stopHasPotentialVehicleTransfer(game, character, vehicle, line, stop)) return
-				traces.vehicle.log?.('vehicleJob.line.emptyStop', {
+				sink.log?.('vehicleJob.line.emptyStop', {
 					lineId: debugObjectId(line),
 					stopIndex: line.stops.indexOf(stop),
 					reason: 'empty-undocked-anchor-stop',
@@ -743,7 +746,7 @@ export function advanceVehicleLineServicePastEmptyStops(
 				if (!next) return
 			}
 
-			traces.vehicle.log?.('vehicleJob.line.emptyStop', {
+			sink.log?.('vehicleJob.line.emptyStop', {
 				lineId: debugObjectId(line),
 				stopIndex: line.stops.indexOf(stop),
 				reason: 'empty-dock-load-stop',
@@ -767,6 +770,7 @@ export function advanceVehicleLineServicePastEmptyStops(
 		}
 
 		if ('zone' in stop) {
+			const sink = traces.vehicle(vehicle)
 			const zoneStop = stop as FreightStop & { zone: FreightZoneDefinition }
 			const isDistributeUnload = isDistributeUnloadStop(line, idx)
 			let shouldSkip = false
@@ -781,7 +785,7 @@ export function advanceVehicleLineServicePastEmptyStops(
 			}
 			if (!shouldSkip) return
 
-			traces.vehicle.log?.('vehicleJob.line.emptyStop', {
+			sink.log?.('vehicleJob.line.emptyStop', {
 				lineId: debugObjectId(line),
 				stopIndex: line.stops.indexOf(stop),
 				reason: 'empty-zone-unload-stop',
@@ -804,9 +808,10 @@ export function advanceVehicleLineServicePastEmptyStops(
 		}
 
 		if ('trade' in stop) {
+			const sink = traces.vehicle(vehicle)
 			if (stopHasPotentialVehicleTransfer(game, character, vehicle, line, stop)) return
 
-			traces.vehicle.log?.('vehicleJob.line.emptyStop', {
+			sink.log?.('vehicleJob.line.emptyStop', {
 				lineId: debugObjectId(line),
 				stopIndex: line.stops.indexOf(stop),
 				reason: 'empty-trade-stop',
@@ -869,8 +874,9 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 	character?: Character
 ): void {
 	const svc = vehicle.service
+	const sink = traces.vehicle(vehicle)
 	if (!isVehicleLineService(svc)) {
-		traces.vehicle.log?.('vehicleJob.dock.check', {
+		sink.log?.('vehicleJob.dock.check', {
 			outcome: 'skip',
 			reason: 'not-line-service',
 		})
@@ -878,7 +884,7 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 	}
 	const stop = svc.stop
 	if (!('anchor' in stop)) {
-		traces.vehicle.log?.('vehicleJob.dock.check', {
+		sink.log?.('vehicleJob.dock.check', {
 			lineId: debugObjectId(svc.line),
 			stopIndex: svc.line.stops.indexOf(stop),
 			outcome: 'skip',
@@ -887,7 +893,7 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 		return
 	}
 	if (!vehicle.isDocked) {
-		traces.vehicle.log?.('vehicleJob.dock.check', {
+		sink.log?.('vehicleJob.dock.check', {
 			lineId: debugObjectId(svc.line),
 			stopIndex: svc.line.stops.indexOf(stop),
 			outcome: 'skip',
@@ -898,7 +904,7 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 	}
 	const content = freightVehicleDockBay(vehicle)
 	if (!(content instanceof Alveolus)) {
-		traces.vehicle.log?.('vehicleJob.dock.check', {
+		sink.log?.('vehicleJob.dock.check', {
 			lineId: debugObjectId(svc.line),
 			stopIndex: svc.line.stops.indexOf(stop),
 			outcome: 'skip',
@@ -910,7 +916,7 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 	}
 	const hive = content.hive
 	if (!hive) {
-		traces.vehicle.log?.('vehicleJob.dock.check', {
+		sink.log?.('vehicleJob.dock.check', {
 			lineId: debugObjectId(svc.line),
 			stopIndex: svc.line.stops.indexOf(stop),
 			outcome: 'skip',
@@ -921,7 +927,7 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 	}
 	const dock = hive.freightVehicleDockFor(vehicle)
 	if (!dock) {
-		traces.vehicle.log?.('vehicleJob.dock.check', {
+		sink.log?.('vehicleJob.dock.check', {
 			lineId: debugObjectId(svc.line),
 			stopIndex: svc.line.stops.indexOf(stop),
 			outcome: 'skip',
@@ -931,7 +937,7 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 		return
 	}
 	if (hive.hasActiveFreightVehicleDockMovement(vehicle)) {
-		traces.vehicle.log?.('vehicleJob.dock.check', {
+		sink.log?.('vehicleJob.dock.check', {
 			lineId: debugObjectId(svc.line),
 			stopIndex: svc.line.stops.indexOf(stop),
 			outcome: 'wait',
@@ -947,7 +953,7 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 	const blockingVirtualGoodsCount = vehicleDockBlockingVirtualGoodsCount(vehicle)
 	const candidates = refreshDockedVehicleAdvertisement(vehicle, content)
 	if (candidates.length > 0) {
-		traces.vehicle.log?.('vehicleJob.dock.check', {
+		sink.log?.('vehicleJob.dock.check', {
 			lineId: debugObjectId(svc.line),
 			stopIndex: svc.line.stops.indexOf(stop),
 			outcome: 'wait',
@@ -960,7 +966,7 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 		return
 	}
 	if (blockingVirtualGoodsCount > 0) {
-		traces.vehicle.log?.('vehicleJob.dock.check', {
+		sink.log?.('vehicleJob.dock.check', {
 			lineId: debugObjectId(svc.line),
 			stopIndex: svc.line.stops.indexOf(stop),
 			outcome: 'wait',
@@ -977,7 +983,7 @@ export function maybeAdvanceVehicleFromCompletedAnchorStop(
 	const isLastStop = idx < 0 || !nextFreightLineStop(svc.line, svc.line.stops.indexOf(stop))
 	const hasStock = stockCount > 0
 	const parkNext = isLastStop && !hasStock && vehicleNeedsParkingOnCurrentTile(vehicle)
-	traces.vehicle.log?.('vehicleJob.dock.complete', {
+	sink.log?.('vehicleJob.dock.complete', {
 		lineId: debugObjectId(svc.line),
 		stopIndex: svc.line.stops.indexOf(stop),
 		outcome: isLastStop ? (parkNext ? 'park-next' : 'end-service') : 'advance',
@@ -1001,7 +1007,7 @@ export function advanceVehicleAfterDock(vehicle: Vehicle): void {
 	if (!next) {
 		// Do not strand surplus goods by ending service at the last stop.
 		if (vehicleStorageStockCount(vehicle) > 0) {
-			traces.vehicle.log?.('vehicleJob.dock.complete', {
+			traces.vehicle(vehicle).log?.('vehicleJob.dock.complete', {
 				lineId: debugObjectId(line),
 				stopIndex: line.stops.indexOf(stop),
 				outcome: 'skip-end-service-with-surplus-stock',
@@ -1026,7 +1032,7 @@ export function executeNpcTradeStopAndAdvance(
 	const { line, stop } = svc
 	if (!('trade' in stop)) return false
 	const result = executeNpcTradeStopTransfer({ game, vehicle, line, stop })
-	traces.vehicle.log?.('vehicleJob.tradeStop.transfer', {
+	traces.vehicle(vehicle).log?.('vehicleJob.tradeStop.transfer', {
 		lineId: debugObjectId(line),
 		stopIndex: line.stops.indexOf(stop),
 		result,
@@ -1049,7 +1055,7 @@ export function detachVehicleServiceIfStorageEmpty(vehicle: Vehicle): void {
 	const hasStock = Object.values(vehicle.storage.stock).some((n) => (n ?? 0) > 0)
 	if (hasStock) return
 	vehicle.endService()
-	traces.vehicle.log?.(
+	traces.vehicle(vehicle).log?.(
 		'vehicle freight service detached (empty storage)',
 		debugObjectId(vehicle) ?? ''
 	)
@@ -1070,7 +1076,7 @@ export function disembarkOperatorLeavingDockedVehicleInService(
 	character: Character,
 	vehicle: Vehicle
 ): void {
-	assert(
+	traces.vehicle(vehicle).assert?.(
 		sameRef(character.operates, vehicle),
 		`disembark dock: operated vehicle mismatch (expected ${debugObjectId(vehicle) ?? ''}, was ${debugObjectId(character.operates) ?? ''})`
 	)
@@ -1094,10 +1100,11 @@ export function releaseVehicleFreightWorkOnPlanInterrupt(
 ): void {
 	const v = subject.operates
 	if (!v) return
+	const sink = traces.vehicle(v)
 	if (!v.service) {
 		if (subject.driving && subject.offboard) subject.offboard()
 		else subject.operates = undefined
-		traces.vehicle.log?.('vehicle freight stale operator link cleared on plan interrupt', {
+		sink.log?.('vehicle freight stale operator link cleared on plan interrupt', {
 			characterUid: debugObjectId(subject) ?? '',
 		})
 		return
@@ -1105,7 +1112,7 @@ export function releaseVehicleFreightWorkOnPlanInterrupt(
 	if (!sameRef(v.operator, subject)) {
 		if (subject.disengageVehicleKeepingService) subject.disengageVehicleKeepingService()
 		else subject.operates = undefined
-		traces.vehicle.log?.('vehicle freight stale operator mismatch cleared on plan interrupt', {
+		sink.log?.('vehicle freight stale operator mismatch cleared on plan interrupt', {
 			characterUid: debugObjectId(subject) ?? '',
 			operatorUid: debugObjectId(v.operator),
 		})
@@ -1113,7 +1120,7 @@ export function releaseVehicleFreightWorkOnPlanInterrupt(
 	}
 	if (subject.disengageVehicleKeepingService) subject.disengageVehicleKeepingService()
 	else v.releaseOperator()
-	traces.vehicle.log?.('vehicle freight operator released on plan interrupt', {
+	sink.log?.('vehicle freight operator released on plan interrupt', {
 		characterUid: debugObjectId(subject) ?? '',
 		stillHasService: !!v.service,
 	})

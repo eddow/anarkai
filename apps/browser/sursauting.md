@@ -39,7 +39,7 @@ Sursaut says: *"Most of the time, onChange, onInput etc are useless and should b
 | `AlveolusProperties.tsx` | 423 | `<input type="range">` | `onInput` → `setTransformRatio` |
 | `plan-manager.tsx` | 405, 442 | `<input>` name/role | `onInput` → `applyDraftPatch` / `setEntry` |
 | `lines-management.tsx` | 312 | `<input type="search">` | `onInput` → `state.text = …` |
-| `HardListSearchPicker.tsx` | 159 | `<input>` filter | `onInput` → `state.query = …` |
+| `AssignedLinksPicker.tsx` | filter input | `value={state.query}` |
 | `StorageConfiguration.tsx` | 387 | `<input>` preset | `update:value=` + `onChange` + `onBlur` — should use only `update:value=` |
 
 ### 2.2 `<select>` bindings that should be two-way
@@ -162,7 +162,7 @@ No direct JSX `.map()` violations found in the non-spec source. The `.map()` cal
 | 🟡 Medium | `FreightLineProperties.tsx` | onInput, manual revision invalidation |
 | 🟡 Medium | `AlveolusProperties.tsx` | onChange (selects), onInput (range) |
 | 🟡 Medium | `plan-manager.tsx` | onInput, onChange (selects) |
-| 🟡 Medium | `HardListSearchPicker.tsx` | onInput |
+| 🟡 Medium | `AssignedLinksPicker.tsx` | value binding |
 | 🟡 Medium | `parts/WorkingIndicator.tsx` | onChange prop |
 | 🟡 Medium | `properties/VariantPicker.tsx` | onChange prop |
 | 🟡 Medium | `FreightStopList.tsx` | onChange prop |

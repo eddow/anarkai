@@ -3,7 +3,8 @@ import type { Character } from 'ssh/population/character'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
 import { sameRef } from 'ssh/utils/identity'
-import { assert, registerTraceInvariants, type TraceInvariantResult, traces } from '../dev/debug.ts'
+import { registerTraceInvariants, type TraceInvariantResult, traces } from '../dev/debug.ts'
+
 
 function isCharacter(value: unknown): value is Character {
 	return !!value && typeof value === 'object' && 'driving' in value && 'operates' in value
@@ -119,22 +120,16 @@ registerTraceInvariants('vehicle', {
 				},
 })
 
-export function vehicleTraceAssert(condition: unknown, message: string): asserts condition {
-	if (condition) return
-	traces.vehicle.error?.(message)
-	assert(condition, message)
-}
-
 export function assertDrivingVehicleSeam(character: Character): void {
-	traces.vehicle.invariant?.['driving-implies-operates'](character)
-	traces.vehicle.invariant?.['operated-vehicle-points-back'](character)
+	traces.vehicle(character).invariant?.['driving-implies-operates'](character)
+	traces.vehicle(character).invariant?.['operated-vehicle-points-back'](character)
 	const drivingResult = drivingVehicleSeamResult(character)
 	const operatedResult = operatedVehiclePointsBackResult(character)
-	vehicleTraceAssert(
+	traces.vehicle(character).assert?.(
 		typeof drivingResult === 'boolean' ? drivingResult : drivingResult.ok,
 		typeof drivingResult === 'boolean' ? 'driving implies operates' : drivingResult.message!
 	)
-	vehicleTraceAssert(
+	traces.vehicle(character).assert?.(
 		typeof operatedResult === 'boolean' ? operatedResult : operatedResult.ok,
 		typeof operatedResult === 'boolean'
 			? 'character.operates must point back to the same vehicle operator'
@@ -143,9 +138,9 @@ export function assertDrivingVehicleSeam(character: Character): void {
 }
 
 export function assertVehicleOperationConsistency(vehicle: Vehicle, character: Character): void {
-	traces.vehicle.invariant?.['operation-consistency'](vehicle, character)
+	traces.vehicle(vehicle).invariant?.['operation-consistency'](vehicle, character)
 	const result = vehicleOperationConsistencyResult(vehicle, character)
-	vehicleTraceAssert(
+	traces.vehicle(vehicle).assert?.(
 		typeof result === 'boolean' ? result : result.ok,
 		typeof result === 'boolean'
 			? 'vehicle.service.operator must be the operating character'
@@ -154,9 +149,9 @@ export function assertVehicleOperationConsistency(vehicle: Vehicle, character: C
 }
 
 export function assertDockedSemantics(vehicle: Vehicle): void {
-	traces.vehicle.invariant?.['docked-semantics'](vehicle)
+	traces.vehicle(vehicle).invariant?.['docked-semantics'](vehicle)
 	const result = dockedSemanticsResult(vehicle)
-	vehicleTraceAssert(
+	traces.vehicle(vehicle).assert?.(
 		typeof result === 'boolean' ? result : result.ok,
 		typeof result === 'boolean' ? 'docked vehicles must not keep a world position' : result.message!
 	)
@@ -167,5 +162,5 @@ export function traceVehicleStockWithoutService(vehicle: Vehicle): void {
 	const stock = vehicle.storage.stock
 	const hasStock = Object.values(stock).some((n) => (n ?? 0) > 0)
 	if (hasStock)
-		traces.vehicle.log?.('vehicle has stock without active service', debugObjectId(vehicle) ?? '')
+		traces.vehicle(vehicle).log?.('vehicle has stock without active service', debugObjectId(vehicle) ?? '')
 }

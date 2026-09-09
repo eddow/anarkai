@@ -28,7 +28,8 @@ import type {
 import { gameObjectsModule } from 'ssh/types/game-objects'
 import { axial, type Positioned, toAxialCoord } from 'ssh/utils'
 import { sameRef } from 'ssh/utils/identity'
-import { assert } from '../../dev/debug.ts'
+import { assert, traces } from '../../dev/debug.ts'
+
 import { subject } from '../scripts'
 import { DurationStep } from '../steps'
 import { PlanCommitment } from './plan-commitment'
@@ -158,11 +159,11 @@ const transferPlanHandler: PlanHandler<TransferPlan> = {
 				// "incoming" long before any good physically reaches them.
 			} else if (description === 'grab') {
 				// Grab plan: allocate vehicle space and reserve source storage
-				assert(transport, 'grab requires active transport (driving)')
-				assert(target, 'target must be set for storage grab')
+			assert(transport, 'grab requires active transport (driving)')
+			assert(target, 'target must be set for storage grab')
 				const content = getContentFromPosition(hex, target)
-				assert(content, 'target content must be set')
-				assert('storage' in content, 'planGrabStored only works with TileContent that has storage')
+			assert(content, 'target content must be set')
+			assert('storage' in content, 'planGrabStored only works with TileContent that has storage')
 				const goods = computeGrabGoods(plan, character, target)
 				if (Object.keys(goods).length === 0) throw new Error('No goods to grab at execution time')
 				plan.resolvedGoods = goods
@@ -235,7 +236,10 @@ const pickupPlanHandler: PlanHandler<PickupPlan> = {
 						target: coord,
 					})
 				}
-				console.warn(`No LooseGoods to grab for ${goodType}`)
+				traces.script(character).warn?.(`No LooseGoods to grab for ${goodType}`, {
+					goodType,
+					target: coord,
+				})
 				return
 			}
 
@@ -485,9 +489,14 @@ class PlanFunctions {
 		try {
 			planHandlers[plan.type].begin(plan, this[subject])
 		} catch (error) {
+			// Cleanup is best-effort but must stay visible: a failing
+			// releaseStopper/cancel/finally would otherwise hide behind the
+			// original begin error with no trace.
 			try {
 				if ('releaseStopper' in plan) plan.releaseStopper?.()
-			} catch {}
+			} catch (releaseError) {
+				traces.script(this[subject]).warn?.('[plan] begin cleanup: releaseStopper failed', releaseError)
+			}
 			try {
 				// Use commitment-based cascade; handler.cancel is optional fallback for work plans
 				if ('commitment' in plan && plan.commitment) {
@@ -495,10 +504,14 @@ class PlanFunctions {
 				} else {
 					planHandlers[plan.type].cancel?.(plan, this[subject])
 				}
-			} catch {}
+			} catch (cancelError) {
+				traces.script(this[subject]).warn?.('[plan] begin cleanup: cancel failed', cancelError)
+			}
 			try {
 				planHandlers[plan.type].finally?.(plan, this[subject])
-			} catch {}
+			} catch (finallyError) {
+				traces.script(this[subject]).warn?.('[plan] begin cleanup: finally failed', finallyError)
+			}
 			throw error
 		}
 	}
@@ -510,11 +523,11 @@ class PlanFunctions {
 		if (plan.invariant) {
 			try {
 				if (!plan.invariant()) {
-					console.error(`Plan ${plan.type} invariant failed`)
+					traces.script(this[subject]).error?.(`Plan ${plan.type} invariant failed`)
 					throw new Error(`Plan ${plan.type} invariant failed`)
 				}
 			} catch (e) {
-				console.error(`Error executing plan ${plan.type} invariant:`, e)
+				traces.script(this[subject]).error?.(`Error executing plan ${plan.type} invariant:`, e)
 				throw e
 			}
 		}

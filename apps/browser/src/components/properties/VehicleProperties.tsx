@@ -25,7 +25,7 @@ import {
 import type { GoodType, JobType } from 'ssh/types/base'
 import { type AxialCoord, axial, toAxialCoord } from 'ssh/utils'
 import { filterSet, mapSet } from 'ssh/utils/iter'
-import ComboSearchPicker, { type ComboSearchPickerItem } from '../ComboSearchPicker'
+import AssignedLinksPicker, { type AssignedLinksPickerItem } from '../AssignedLinksPicker'
 import EntityBadge from '../EntityBadge'
 import GoodsList from '../GoodsList'
 import InspectorObjectLink from '../InspectorObjectLink'
@@ -136,38 +136,6 @@ css`
 	color: var(--ak-text-muted);
 }
 
-.vehicle-line-assignment__list {
-	display: flex;
-	flex-direction: column;
-	gap: 0.4rem;
-}
-
-.vehicle-line-assignment__row {
-	display: flex;
-	align-items: center;
-	gap: 0.45rem;
-	flex-wrap: wrap;
-	padding: 0.35rem 0.45rem;
-	border: 1px solid color-mix(in srgb, var(--ak-text-muted) 18%, transparent);
-	border-radius: 0.4rem;
-	background: color-mix(in srgb, var(--ak-surface-1) 78%, transparent);
-}
-
-.vehicle-line-assignment__remove {
-	margin-inline-start: auto;
-	border: 0;
-	background: transparent;
-	color: var(--ak-danger, #c44);
-	cursor: pointer;
-	font-size: 1rem;
-	line-height: 1;
-}
-
-.vehicle-line-assignment__empty {
-	color: var(--ak-text-muted);
-	font-size: 0.78rem;
-}
-
 .vehicle-properties__logs {
 	display: flex;
 	flex-direction: column;
@@ -219,25 +187,23 @@ function proposedJobsLabel(): string {
 }
 
 const vehicleAssignmentText = () => {
-	const vehicle = T.vehicle as typeof T.vehicle & {
-		lineAssignment?: {
-			section?: string
-			assigned?: string
-			add?: string
-			filter?: string
-			emptyAssigned?: string
-			emptyAvailable?: string
-			remove?: string
+	const lineAssignment = (
+		T.vehicle as typeof T.vehicle & {
+			lineAssignment?: {
+				assigned?: string
+				filter?: string
+				emptyAssigned?: string
+				emptyAvailable?: string
+				remove?: string
+			}
 		}
-	}
+	).lineAssignment
 	return {
-		section: vehicle.lineAssignment?.section ?? 'Assigned lines',
-		assigned: vehicle.lineAssignment?.assigned ?? 'Lines',
-		add: vehicle.lineAssignment?.add ?? 'Add line',
-		filter: vehicle.lineAssignment?.filter ?? 'Filter lines...',
-		emptyAssigned: vehicle.lineAssignment?.emptyAssigned ?? 'No lines assigned',
-		emptyAvailable: vehicle.lineAssignment?.emptyAvailable ?? 'No freight lines available',
-		remove: vehicle.lineAssignment?.remove ?? 'Remove line',
+		assigned: lineAssignment?.assigned ?? 'Lines',
+		filter: lineAssignment?.filter ?? 'Filter lines...',
+		emptyAssigned: lineAssignment?.emptyAssigned ?? 'No lines assigned',
+		emptyAvailable: lineAssignment?.emptyAvailable ?? 'No freight lines available',
+		remove: lineAssignment?.remove ?? 'Remove line',
 	}
 }
 
@@ -335,7 +301,7 @@ function lineHint(game: Vehicle['game'], line: FreightLineDefinition): string {
 
 function assignableLineItems(
 	vehicle: Vehicle
-): (ComboSearchPickerItem & { item: FreightLineDefinition })[] {
+): (AssignedLinksPickerItem & { item: FreightLineDefinition })[] {
 	if (!isLineFreightVehicleType(vehicle.vehicleType)) return []
 	const assigned = new Set((vehicle.servedLines ?? []).map((line) => line.name))
 	return mapSet(
@@ -401,7 +367,7 @@ const VehicleProperties = (
 		)
 	const availableLineItems = () => (props.vehicle ? assignableLineItems(props.vehicle) : [])
 
-	const assignLine = (item: ComboSearchPickerItem & { item: FreightLineDefinition }) => {
+	const assignLine = (item: AssignedLinksPickerItem & { item: FreightLineDefinition }) => {
 		const vehicle = props.vehicle
 		if (!vehicle) return
 		if (!isLineFreightVehicleType(vehicle.vehicleType)) return
@@ -477,41 +443,20 @@ const VehicleProperties = (
 				</InspectorSection>
 				<InspectorSection>
 					<PropertyGrid>
-						<PropertyGridRow label={assignmentText().assigned}>
-							<div class="vehicle-line-assignment__list">
-								<for each={assignedLineObjects()}>
-									{(lineObject) => (
-										<div class="vehicle-line-assignment__row" data-testid="vehicle-assigned-line">
-											<LinkedEntityControl object={lineObject} />
-											<InspectorObjectLink object={lineObject} />
-											<button
-												type="button"
-												class="vehicle-line-assignment__remove"
-												title={assignmentText().remove}
-												aria-label={assignmentText().remove}
-												onClick={() => unassignLine(lineObject.line)}
-												data-testid="vehicle-unassign-line"
-											>
-												×
-											</button>
-										</div>
-									)}
-								</for>
-								<div if={assignedLineObjects().length === 0} class="vehicle-line-assignment__empty">
-									{assignmentText().emptyAssigned}
-								</div>
-							</div>
-						</PropertyGridRow>
-						<PropertyGridRow label={assignmentText().add}>
-							<ComboSearchPicker
-								items={availableLineItems()}
-								onSelect={assignLine}
-								placeholder={assignmentText().filter}
-								emptyMessage={assignmentText().emptyAvailable}
-								triggerLabel={assignmentText().add}
-								testId="vehicle-line-picker"
-							/>
-						</PropertyGridRow>
+						<AssignedLinksPicker
+							assigned={assignedLineObjects()}
+							availableItems={availableLineItems()}
+							onSelect={assignLine}
+							onRemove={(lineObject) => unassignLine(lineObject.line)}
+							label={assignmentText().assigned}
+							filterPlaceholder={assignmentText().filter}
+							emptyAssigned={assignmentText().emptyAssigned}
+							emptyAvailable={assignmentText().emptyAvailable}
+							removeLabel={assignmentText().remove}
+							pickerTestId="vehicle-line-picker"
+							assignedRowTestId="vehicle-assigned-line"
+							removeButtonTestId="vehicle-unassign-line"
+						/>
 					</PropertyGrid>
 				</InspectorSection>
 				<InspectorSection if={state.workChoices.length > 0}>

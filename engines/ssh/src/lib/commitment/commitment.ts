@@ -2,6 +2,7 @@ import { unreactive } from 'mutts'
 import { traces } from '../dev/debug.ts'
 import { traceProjection } from '../dev/trace.ts'
 
+
 type CommitmentTracePayload = Record<string, unknown>
 
 interface CommitmentTraceBreadcrumb {
@@ -226,15 +227,16 @@ export type CommitmentEnding =
 export type FailureReason = string | undefined
 
 /**
- * Assert that an allocation succeeded. If `reason` is a string, log it
- * via `traces.commitments.assert` and throw.
+ * Assert that an allocation succeeded. If `reason` is a string, record it
+ * via `traces.commitments.assert` (which throws `AssertionError`) and throw
+ * a plain `Error` with the allocation context.
  *
  * Used by every `allocate`/`reserve` call site — high enough severity
  * because these are called from constructors and "must succeed" paths.
  */
 export function assertSuccess(reason: FailureReason, label: string): void {
 	if (reason !== undefined) {
-		traces.commitments?.assert?.(false, `[${label}] ${reason}`)
+		traces.commitments.assert?.(false, `[${label}] ${reason}`)
 		throw new Error(`Allocation failed: ${label}: ${reason}`)
 	}
 }

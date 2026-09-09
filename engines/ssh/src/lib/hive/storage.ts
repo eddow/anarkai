@@ -394,6 +394,8 @@ export class StorageAlveolus extends Alveolus {
 				const stockQty = this.storage.stock[goodType] ?? 0
 				const plannedQty = stockQty + this.storage.allocated(goodType)
 				const bufferAmount = buffers.get(goodType) || 0
+				// Surplus beyond the keep target (or ANY stock for an unbuffered storage —
+				// buffer 0 means "no constraint", so held stock is surplus): provide 0-store.
 				if (plannedQty > bufferAmount && this.canGive(goodType, '0-store')) {
 					relations[goodType] = {
 						advertisement: 'provide',
@@ -401,23 +403,22 @@ export class StorageAlveolus extends Alveolus {
 					}
 					continue
 				}
-				// A buffered storage below its keep target is NOT a pure demander: its reserve must
-				// remain available to consumers. `canGive('2-use')` bypasses the buffer, so advertising
-				// `provide 2-use` here keeps the pile a provider — a 2-use demander (e.g. the sawmill)
-				// is served first, and the pile only flips to `demand 1-buffer` once it is actually empty.
-				if (bufferAmount > 0 && this.canGive(goodType, '2-use')) {
+				const demandTarget =
+					bufferAmount > 0 ? bufferAmount : (this.storage.maxAmounts[goodType] ?? 0)
+				if (bufferAmount > 0 && plannedQty === bufferAmount && this.canGive(goodType, '2-use')) {
+					// At exactly the keep target: the reserve is full but still consumable by
+					// 2-use consumers (a sawmill pulling its reserve).
 					relations[goodType] = {
 						advertisement: 'provide',
 						priority: '2-use',
 					}
 					continue
 				}
-				// A buffered storage only demands back up to its keep target (so it
-				// never "fills toward max" and churns with general storages). An
-				// unbuffered ("no constraint") storage has no keep target, so it
-				// demands whenever it has room — up to its hard max amount.
-				const demandTarget =
-					bufferAmount > 0 ? bufferAmount : (this.storage.maxAmounts[goodType] ?? 0)
+				// Below the keep target: demand refill (1-buffer) so the hive signals a need
+				// (the gather line transports wood). The reserve stays reachable by 2-use
+				// consumers through the matcher's reserve-provider path — do NOT advertise
+				// `provide 2-use` here, or the refill need is hidden ("wood in zone, room in
+				// hive, no transport").
 				if (plannedQty < demandTarget && this.canTake(goodType, '1-buffer')) {
 					relations[goodType] = {
 						advertisement: 'demand',

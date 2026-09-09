@@ -1,7 +1,11 @@
 import { jobBalance } from 'engine-rules'
 import type { Alveolus } from 'ssh/board/content/alveolus'
 import { debugObjectId } from 'ssh/dev/debug-object-id'
-import { type FreightLineDefinition, findDistributeRouteSegments } from 'ssh/freight/freight-line'
+import {
+	type FreightLineDefinition,
+	findDistributeRouteSegments,
+	findGatherRouteSegments,
+} from 'ssh/freight/freight-line'
 import {
 	computeFutureFreightTransfer,
 	measureFreightStopNeededGoods,
@@ -179,12 +183,22 @@ function dockedVehicleFutureTransfer(
 	const { line, stop } = svc
 	const stopIdx = line.stops.indexOf(stop)
 	if (stopIdx < 0 || !('anchor' in stop)) return undefined
-	const future = computeFutureFreightTransfer({
-		game: vehicle.game,
-		line,
-		currentStopIndex: stopIdx,
-	})
-	const routeNeed = future.routeNeedGoods.perGood
+	// At a gather UNLOAD anchor the run completes: the gather's own load zone is the
+	// SOURCE, not a downstream sink, so there is no route need to reserve or reload
+	// for. Counting the zone (via the cyclic wrap) as downstream need is what made an
+	// emptied vehicle reload wood from the hive ("unload → load" churn) and, before
+	// that, reserved the gathered cargo away from the hive.
+	const isGatherUnloadTerminal = findGatherRouteSegments(line).some(
+		(segment) =>
+			segment.unloadStopIndex === stopIdx && segment.loadStopIndex < segment.unloadStopIndex
+	)
+	const routeNeed = isGatherUnloadTerminal
+		? ({} as Partial<Record<GoodType, number>>)
+		: computeFutureFreightTransfer({
+				game: vehicle.game,
+				line,
+				currentStopIndex: stopIdx,
+			}).routeNeedGoods.perGood
 	const goods = new Set<GoodType>([
 		...(Object.keys(vehicle.storage.stock) as GoodType[]),
 		...(Object.keys(routeNeed) as GoodType[]),
@@ -253,34 +267,38 @@ export function collectDockedVehicleAdvertisementCandidates(
 ): DockedVehicleAdvertisementCandidate[] {
 	const svc = vehicle.service
 	if (!isVehicleLineService(svc) || !isLineFreightVehicleType(vehicle.vehicleType)) {
-		traces.vehicle.log?.('[dock.candidates] skipped: not line freight vehicle', {
+		traces.vehicle(vehicle).log?.('[dock.candidates] skipped: not line freight vehicle', {
 			vehicleType: vehicle.vehicleType,
 			serviceKind: svc ? 'maintenance' : undefined,
 		})
 		return []
 	}
+	const { line, stop } = svc
+	const stopIdx = line.stops.indexOf(stop)
 	if (!vehicle.isDocked) {
+		traces.vehicle(vehicle).log?.('[dock.candidates] skipped: not docked', {
+			lineId: debugObjectId(line),
+			stopIndex: stopIdx,
+		})
 		return []
 	}
 	if (bay.action.type !== 'road-fret') {
-		traces.vehicle.log?.('[dock.candidates] skipped: bay is not freight bay', {
+		traces.vehicle(vehicle).log?.('[dock.candidates] skipped: bay is not freight bay', {
 			bay: bay.name,
 			actionType: bay.action.type,
 		})
 		return []
 	}
 
-	const { line, stop } = svc
-	const stopIdx = line.stops.indexOf(stop)
 	if (stopIdx < 0) {
-		traces.vehicle.warn?.('[dock.candidates] skipped: stop not in line', {
+		traces.vehicle(vehicle).warn?.('[dock.candidates] skipped: stop not in line', {
 			lineId: debugObjectId(line),
 			stopIndex: stopIdx,
 		})
 		return []
 	}
 	if (!('anchor' in stop)) {
-		traces.vehicle.log?.('[dock.candidates] skipped: current stop is not an anchor', {
+		traces.vehicle(vehicle).log?.('[dock.candidates] skipped: not anchor stop', {
 			lineId: debugObjectId(line),
 			stopIndex: stopIdx,
 		})
@@ -351,7 +369,7 @@ export function collectDockedVehicleAdvertisementCandidates(
 		}
 	}
 
-	traces.vehicle.log?.('[dock.candidates] collected', {
+	traces.vehicle(vehicle).log?.('[dock.candidates] collected', {
 		bay: bay.name,
 		lineId: debugObjectId(line),
 		stopIndex: stopIdx,
@@ -402,7 +420,7 @@ export function refreshDockedVehicleAdvertisement(
 		if (canceled > 0 && vehicle.storage.virtualGoodsCount > 0) {
 			const cleared = clearUnbackedVirtualGoods(vehicle)
 			if (cleared > 0) {
-				traces.vehicle.warn?.('[dock.candidates] cleared unbacked virtual goods', {
+				traces.vehicle(vehicle).warn?.('[dock.candidates] cleared unbacked virtual goods', {
 					dock: dock.name,
 					canceled,
 					cleared,

@@ -96,6 +96,15 @@ const mkDemander = (name: string): TestAdvertiser => ({
 	canTake: (_goodType, _priority) => true, // Demanders can take
 })
 
+// A below-buffer buffered storage: it advertises `demand 1-buffer` (refill) but its
+// RESERVE is still givable at 2-use (buffer bypass) — e.g. a wood pile holding stock
+// below its keep target.
+const mkReserveHolder = (name: string): TestAdvertiser => ({
+	name,
+	canGive: (_goodType, priority) => priority === '2-use',
+	canTake: (_goodType, _priority) => true,
+})
+
 describe('Advertisement matching', () => {
 	it('matches opposite advertisements when demand arrives after provide', async () => {
 		const manager = new TestManager()
@@ -171,6 +180,35 @@ describe('Advertisement matching', () => {
 		expect(manager.movements).toEqual([{ goodType: 'wood', giver: 'producer', taker: 'build' }])
 		// Low priority demand should still be available
 		expect(manager.advertisements.wood?.advertisement).toBe('demand')
+	})
+
+	it('lets a 2-use demander consume the reserve of a demand 1-buffer storage', () => {
+		const manager = new TestManager()
+		const reserve = mkReserveHolder('pile')
+		const sawmill = mkDemander('sawmill')
+
+		// Below-buffer pile advertises demand 1-buffer (refill) — its reserve stays givable at 2-use.
+		manager.advertise(reserve, { wood: { advertisement: 'demand', priority: '1-buffer' } })
+		expect(manager.advertisements.wood?.advertisement).toBe('demand')
+
+		// Sawmill demands 2-use → pulls from the pile's reserve (not via a `provide` ad).
+		manager.advertise(sawmill, { wood: { advertisement: 'demand', priority: '2-use' } })
+
+		expect(manager.movements).toEqual([{ goodType: 'wood', giver: 'pile', taker: 'sawmill' }])
+	})
+
+	it('lets a new reserve holder feed an existing 2-use demander', () => {
+		const manager = new TestManager()
+		const reserve = mkReserveHolder('pile')
+		const sawmill = mkDemander('sawmill')
+
+		// Sawmill advertises first.
+		manager.advertise(sawmill, { wood: { advertisement: 'demand', priority: '2-use' } })
+
+		// Then the below-buffer pile arrives and should feed the sawmill's demand.
+		manager.advertise(reserve, { wood: { advertisement: 'demand', priority: '1-buffer' } })
+
+		expect(manager.movements).toEqual([{ goodType: 'wood', giver: 'pile', taker: 'sawmill' }])
 	})
 
 	it('allows 2-use provider to match with empty storage through general storage fallback', async () => {

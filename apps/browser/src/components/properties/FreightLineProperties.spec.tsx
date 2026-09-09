@@ -143,6 +143,42 @@ vi.mock('../PropertyGridRow', () => ({
 		),
 }))
 
+vi.mock('../AssignedLinksPicker', () => ({
+	default: (props: {
+		assigned?: readonly { title?: string }[]
+		availableItems?: readonly { item?: unknown; label?: string }[]
+		onSelect?: (item: { item?: unknown; label?: string }) => void
+		onRemove?: (link: { title?: string }) => void
+		pickerTestId?: string
+		assignedRowTestId?: string
+		removeButtonTestId?: string
+	}) => (
+		<div>
+			{(props.assigned ?? []).map((link) => (
+				<div data-testid={props.assignedRowTestId}>
+					<span>{link.title ?? 'link'}</span>
+					<button
+						type="button"
+						data-testid={props.removeButtonTestId}
+						onClick={() => props.onRemove?.(link)}
+					>
+						×
+					</button>
+				</div>
+			))}
+			{(props.availableItems ?? []).map((item) => (
+				<button
+					type="button"
+					data-testid={`${props.pickerTestId ?? 'search-picker'}-item`}
+					onClick={() => props.onSelect?.(item)}
+				>
+					{item.label}
+				</button>
+			))}
+		</div>
+	),
+}))
+
 vi.mock('../FreightStopList', () => ({
 	default: (props: { draft: { name: string }; onChange: (next: { name: string }) => void }) => (
 		<button

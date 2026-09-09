@@ -13,29 +13,35 @@ import {
 	type TraceRow,
 	type TraceSink,
 } from './trace.ts'
+import { isWatched, onWatchChange, unwatch, watch, watchCount } from './watch.ts'
 
-/** Default trace channel levels. To disable, delete the key and assign `undefined` to `traceLevels[name]` or call `traces[name]?.setLevel(TraceVerb)`. When a new TraceSink is needed, adding its name here is enough */
+export type { TraceSink }
+
+const defaultTraceLevel = 'debug'
+/** Default trace channel levels. To disable, delete the key and assign `undefined` to `traceLevels[name]` or call `traces.<entityless>[name]?.setLevel(TraceVerb)`. When a new TraceSink is needed, adding its name here is enough. Attached/hybrid channels are callable (`traces.vehicle(v)`); their backing sink is shared, so `setLevel` via any subject view applies channel-wide. */
 export const traceLevels: Record<string, TraceVerb> = {
-	vehicle: 'warn',
-	npc: 'warn',
-	advertising: 'warn',
-	allocations: 'warn',
-	commitments: 'warn',
-	convey: 'warn',
-	residential: 'warn',
-	commercial: 'warn',
-	work: 'warn',
-	script: 'warn',
-	characterNeeds: 'warn',
-	idleDiagnosis: 'warn',
-	position: 'warn',
-	terrain: 'warn',
-	ui: 'warn',
+	vehicle: defaultTraceLevel,
+	npc: defaultTraceLevel,
+	queue: defaultTraceLevel,
+	advertising: defaultTraceLevel,
+	allocations: defaultTraceLevel,
+	commitments: defaultTraceLevel,
+	convey: defaultTraceLevel,
+	residential: defaultTraceLevel,
+	commercial: defaultTraceLevel,
+	work: defaultTraceLevel,
+	script: defaultTraceLevel,
+	scriptEngine: defaultTraceLevel,
+	characterNeeds: defaultTraceLevel,
+	idleDiagnosis: defaultTraceLevel,
+	position: defaultTraceLevel,
+	terrain: defaultTraceLevel,
+	ui: defaultTraceLevel,
 	/** Missing keys, interpolation issues, and other `I18nClient.report` output. */
-	i18n: 'warn',
-	bay: 'warn',
-	forwardProbe: 'warn',
-	identityProbe: 'warn',
+	i18n: defaultTraceLevel,
+	bay: defaultTraceLevel,
+	forwardProbe: defaultTraceLevel,
+	identityProbe: defaultTraceLevel,
 }
 
 const TERRAIN_PROFILING_ENABLED = false
@@ -60,6 +66,25 @@ export class AssertionError extends Error {
 		this.name = 'AssertionError'
 	}
 }
+
+/**
+ * Fatal assertion with TypeScript narrowing. Prefer the channel-scoped form
+ * `traces.<channel>.assert?.(condition, message, payload?)`, which records an
+ * `assert failure` row on the channel and then throws `AssertionError` when
+ * the channel's `assert` verb is enabled — and skips evaluating the condition
+ * entirely when disabled. This bare helper is the same throw without a trace
+ * row, kept for contexts with no channel (tests, pure utils) and for
+ * `defined()` below.
+ *
+ * NOTE: TypeScript only narrows on assertion calls whose target is a plain
+ * identifier or `this`-free property chain rooted in an explicitly-typed
+ * name (TS2775). `traces.<channel>.assert?.(...)` does NOT narrow because
+ * `traces` is an untyped `Proxy` record. Keep using the bare `assert(...)`
+ * wherever narrowing is needed; use `traces.<channel>.assert?.(...)` for
+ * level-gated recording + throwing without narrowing.
+ * 
+ * @todo unreference this assertion to use traces only
+ */
 export function assert(condition: any, message: string): asserts condition {
 	if (!condition) {
 		throw new AssertionError(message)
@@ -74,10 +99,18 @@ export function defined<T>(value: T | undefined, message = 'Value is defined'): 
  * Minimum level recorded by a trace channel.
  *
  * `log` enables every console-like method, `warn` enables warn/assert/error, `assert` enables
- * failed assertions and errors, and `error` enables errors only. Disabled methods are `undefined`,
- * so optional-call trace sites do not evaluate their arguments.
+ * failed assertions and errors, and `error` enables errors only. `debug` acts as `warn` in general
+ * but as `log` for watched subjects (see `traceFor`). Disabled methods are `undefined`, so
+ * optional-call trace sites do not evaluate their arguments.
+ *
+ * `assert` is fatal: when enabled it records the failure row and throws
+ * `AssertionError`; when disabled the method is `undefined` and `?.` skips
+ * evaluating the condition entirely (use `error` + explicit throw for checks
+ * that must fire regardless of level). All default channel levels are
+ * `warn`, so `traces.<channel>(subject).assert?.(...)` evaluates unless a channel is
+ * explicitly muted or raised to `error`.
  */
-export const traceVerbs = ['log', 'warn', 'assert', 'error'] as const
+export const traceVerbs = ['log', 'debug', 'warn', 'assert', 'error'] as const
 export type TraceVerb = (typeof traceVerbs)[number]
 type TraceConsoleMethod = keyof Pick<
 	Console,
@@ -88,6 +121,7 @@ export const DEFAULT_TRACE_LOG_LIFETIME = 300
 
 const TRACE_VERB_RANK: Record<TraceVerb, number> = {
 	log: 0,
+	debug: 1,
 	warn: 1,
 	assert: 2,
 	error: 3,
@@ -117,11 +151,15 @@ function collectTraceLogObjects(
 }
 /**
  * Clears all trace hooks. Used by Vitest setup so tests start with fresh `traces.*` sinks.
- * Dev: configure `traceLevels`, call `traces.channel?.setLevel(...)`, or assign a custom sink locally.
+ * Dev: configure `traceLevels`, call `traces.<entityless>channel?.setLevel(...)`, or assign a custom sink locally.
  */
 export function disconnectAllTraces(): void {
+	traceDebugArmed = false
 	for (const key in traceLevels) {
 		delete traceCache[key]
+	}
+	for (const key of Object.keys(traceAccessorCache)) {
+		delete traceAccessorCache[key]
 	}
 }
 
@@ -206,7 +244,8 @@ class NamedTraceList extends Array<TraceRow> implements TraceSink {
 	trace?: (...args: unknown[]) => void
 	groupCollapsed?: (...args: unknown[]) => void
 	groupEnd?: (...args: unknown[]) => void
-	assert?: (condition?: boolean, ...args: unknown[]) => void
+	/** Level-gated: `undefined` when the channel level disables the `assert` verb, so `?.` skips evaluating the condition. When enabled, records an `assert failure` row and throws `AssertionError`. */
+	assert?: (condition: unknown, ...args: unknown[]) => void
 	invariant?: Record<string, (...args: unknown[]) => void>
 
 	constructor(
@@ -243,10 +282,13 @@ class NamedTraceList extends Array<TraceRow> implements TraceSink {
 		this.applyLevel(level)
 	}
 
+	/** Current channel level (defaults to `log` when unset). */
+	get level(): TraceVerb {
+		return this.options.level ?? 'log'
+	}
+
 	private applyLevel(level: TraceVerb): void {
-		this.log = this.isEnabled(level, 'log')
-			? (...args) => this.pushRow('log', 'log', args)
-			: undefined
+		this.log = this.isEnabled(level, 'log') ? (...args) => this.pushRow('log', 'log', args) : undefined
 		this.warn = this.isEnabled(level, 'warn')
 			? (...args) => this.pushRow('warn', 'warn', args)
 			: undefined
@@ -255,7 +297,13 @@ class NamedTraceList extends Array<TraceRow> implements TraceSink {
 			: undefined
 		this.assert = this.isEnabled(level, 'assert')
 			? (condition, ...args) => {
-					if (!condition) this.pushRow('assert failure', 'assert', args)
+					if (condition) return
+					this.pushRow('assert failure', 'assert', args)
+					const message =
+						typeof args[0] === 'string' && args[0].length > 0
+							? args[0]
+							: `[${this.name}] assertion failed`
+					throw new AssertionError(message)
 				}
 			: undefined
 		this.debug = this.isEnabled(level, 'log')
@@ -274,6 +322,38 @@ class NamedTraceList extends Array<TraceRow> implements TraceSink {
 			? (...args) => this.pushRow('log', 'groupEnd', ['groupEnd', ...args])
 			: undefined
 		this.refreshInvariantSink()
+	}
+
+	/**
+	 * Subject-bound view for `traceFor`. Only the `debug` verb is subject-dependent:
+	 * a watched subject is upgraded to full `log`-level methods (its `log` is defined),
+	 * while an unwatched subject keeps the warn-level sink (`log` stays `undefined`, so
+	 * `?.` short-circuits without evaluating arguments). Every other level is uniform,
+	 * so the live sink is returned unchanged.
+	 */
+	forSubject(subject: unknown): TraceSink {
+		const level = this.options.level ?? 'log'
+		if (level !== 'debug' || !isWatched(subject)) return this
+		const self = this
+		return {
+			log: (...args) => self.pushRow('log', 'log', args),
+			warn: self.warn,
+			error: self.error,
+			assert: self.assert,
+			debug: (...args) => self.pushRow('debug', 'debug', args),
+			info: (...args) => self.pushRow('info', 'info', args),
+			trace: (...args) => self.pushRow('trace', 'trace', args),
+			groupCollapsed: (...args) =>
+				self.pushRow('log', 'groupCollapsed', ['groupCollapsed', ...args]),
+			groupEnd: (...args) => self.pushRow('log', 'groupEnd', ['groupEnd', ...args]),
+			get heads() {
+				return self.heads
+			},
+			read: (count) => self.read(count),
+			display: (count) => self.display(count),
+			reset: () => self.reset(),
+			setLevel: (level) => self.setLevel(level),
+		}
 	}
 
 	refreshInvariantSink(): void {
@@ -407,8 +487,19 @@ export function namedTrace(name: string, options?: NamedTraceOptions) {
 
 const traceCache: Record<string, TraceSink | undefined> = {}
 
+/**
+ * Whether trace channels are currently "debug-armed": while any subject is watched,
+ * every configured channel is raised to `debug` so watched entities log at full detail
+ * (unwatched entities keep `warn`-level behaviour — see `forSubject`). This is what makes
+ * the per-entity debug toggle in the property widget actually surface logs: watching an
+ * object arms the channels, so its `log` becomes defined.
+ */
+let traceDebugArmed = false
+
 function configuredTraceLevel(name: string): TraceVerb | undefined {
-	return traceLevels[name]
+	const level = traceLevels[name]
+	if (level === undefined) return undefined
+	return traceDebugArmed ? 'debug' : level
 }
 
 function createConfiguredTrace(name: string): TraceSink | undefined {
@@ -417,16 +508,182 @@ function createConfiguredTrace(name: string): TraceSink | undefined {
 	return namedTrace(name, { level })
 }
 
+function armTraceDebug(): void {
+	if (traceDebugArmed) return
+	traceDebugArmed = true
+	for (const name in traceLevels) {
+		const sink = traceCache[name]
+		if (sink instanceof NamedTraceList) sink.setLevel('debug')
+	}
+}
+
+function disarmTraceDebug(): void {
+	if (!traceDebugArmed) return
+	traceDebugArmed = false
+	for (const name in traceLevels) {
+		const sink = traceCache[name]
+		if (sink instanceof NamedTraceList) sink.setLevel(traceLevels[name])
+	}
+}
+
+// Raise channels to `debug` while any subject is watched; restore on release.
+onWatchChange(() => {
+	if (watchCount() > 0) armTraceDebug()
+	else disarmTraceDebug()
+})
+
+/**
+ * Channel classification for the subject-aware `traces.*` API.
+ *
+ * - `attached`: the trace always describes one watchable entity; the subject is a
+ *   compulsory positional argument — `traces.vehicle(vehicle).log?.(...)`.
+ * - `hybrid`: the trace is about one of several possible entities; the subject is a
+ *   named bag — `traces.convey({ alveolus }).log?.(...)`.
+ * - `entityless`: no single entity to watch; plain sink — `traces.queue.log?.(...)`.
+ */
+export type TraceChannelKind = 'attached' | 'hybrid' | 'entityless'
+
+/** Subject bag for hybrid channels (`convey`, `work`). Provide whichever fields are in scope. */
+export type HybridTraceSubject = {
+	readonly vehicle?: unknown
+	readonly character?: unknown
+	readonly alveolus?: unknown
+	readonly tile?: unknown
+}
+
+const attachedTraceChannels = new Set(['vehicle', 'position', 'npc', 'script'])
+const hybridTraceChannels = new Set(['convey', 'work'])
+
+/** Classify a channel for the subject-aware `traces.*` API. Unknown channels are entity-less. */
+export function traceChannelKind(channel: string): TraceChannelKind {
+	if (attachedTraceChannels.has(channel)) return 'attached'
+	if (hybridTraceChannels.has(channel)) return 'hybrid'
+	return 'entityless'
+}
+
+/** Resolve the watch-filter subject for a hybrid named-bag argument. */
+function hybridTraceSubject(bag: HybridTraceSubject | unknown): unknown {
+	if (!bag || typeof bag !== 'object') return bag
+	const record = bag as Record<string, unknown>
+	return record.vehicle ?? record.character ?? record.alveolus ?? record.tile ?? bag
+}
+
+export type AttachedTraceAccessor = ((subject: unknown) => TraceSink) & TraceSink
+export type HybridTraceAccessor = ((subject: HybridTraceSubject) => TraceSink) & TraceSink
+
+const traceAccessorCache: Record<string, AttachedTraceAccessor | HybridTraceAccessor | undefined> =
+	{}
+
+function attachedTraceAccessor(channel: string): AttachedTraceAccessor {
+	const cached = traceAccessorCache[channel] as AttachedTraceAccessor | undefined
+	if (cached) return cached
+	// Eagerly create the backing sink BEFORE the Proxy exists, so the `get`
+	// trap below can never re-enter this factory (which would recurse:
+	// factory → Proxy → get → underlyingTraceSink → createConfiguredTrace …
+	// is safe, but `get` → factory → `get` → factory is not).
+	const sink = underlyingTraceSink(channel)
+	const call = (subject: unknown) => traceFor(channel, subject)
+	const accessor = new Proxy(call, {
+		get(target, property, receiver) {
+			// `Reflect.get` on the raw function target: `name`/`length`/`prototype`
+			// live there. Anything else falls through to the backing sink.
+			// NOTE: never `Reflect.get(sink, ...)` with the proxy as receiver —
+			// `NamedTraceList` getters (`heads`) would re-enter this trap.
+			// NOTE: `in` on a Proxy triggers the `has` trap — check the raw
+			// function target with `Reflect.getOwnPropertyDescriptor` instead.
+			if (Reflect.getOwnPropertyDescriptor(target, property) !== undefined)
+				return Reflect.get(target, property, receiver)
+			if (typeof property === 'symbol') return undefined
+			// `then` must stay undefined so `await traces.vehicle` never treats
+			// the accessor as a thenable (which would recurse via traceFor).
+			if (property === 'then') return undefined
+			if (!sink) return undefined
+			const value = (sink as Record<PropertyKey, unknown>)[property]
+			return typeof value === 'function' ? value.bind(sink) : value
+		},
+		set(_target, property, value) {
+			if (sink) Reflect.set(sink as object, property as string, value)
+			return true
+		},
+		has(_target, property) {
+			if (property === 'name' || property === 'then') return true
+			return sink
+				? Reflect.getOwnPropertyDescriptor(sink as object, property) !== undefined
+				: false
+		},
+	}) as AttachedTraceAccessor
+	traceAccessorCache[channel] = accessor
+	return accessor
+}
+
+function hybridTraceAccessor(channel: string): HybridTraceAccessor {
+	const cached = traceAccessorCache[channel] as HybridTraceAccessor | undefined
+	if (cached) return cached
+	// Eager sink (see attachedTraceAccessor): the `get` trap must never
+	// re-enter this factory.
+	const sink = underlyingTraceSink(channel)
+	const call = (subject: HybridTraceSubject) =>
+		traceFor(channel, hybridTraceSubject(subject))
+	const accessor = new Proxy(call, {
+		get(target, property, receiver) {
+			if (Reflect.getOwnPropertyDescriptor(target, property) !== undefined)
+				return Reflect.get(target, property, receiver)
+			if (typeof property === 'symbol') return undefined
+			// `then` must stay undefined so `await traces.convey` never treats
+			// the accessor as a thenable (which would recurse via traceFor).
+			if (property === 'then') return undefined
+			if (!sink) return undefined
+			const value = (sink as Record<PropertyKey, unknown>)[property]
+			return typeof value === 'function' ? value.bind(sink) : value
+		},
+		set(_target, property, value) {
+			if (sink) Reflect.set(sink as object, property as string, value)
+			return true
+		},
+		has(_target, property) {
+			if (property === 'name' || property === 'then') return true
+			return sink
+				? Reflect.getOwnPropertyDescriptor(sink as object, property) !== undefined
+				: false
+		},
+	}) as HybridTraceAccessor
+	traceAccessorCache[channel] = accessor
+	return accessor
+}
+
+/** Read the underlying sink for `channel` without going through the callable proxy. */
+function underlyingTraceSink(channel: string): TraceSink | undefined {
+	// NOTE: never read via `traces[channel]` here — `traces` is a Proxy whose
+	// `get` trap calls the accessor factories, which call back into this
+	// function. Always go through `traceCache` directly.
+	if (channel in traceCache) return traceCache[channel]
+	const trace = createConfiguredTrace(channel)
+	if (trace) traceCache[channel] = trace
+	return trace
+}
+
 /**
  * Lazy trace registry keyed by channel name.
  *
- * Reading `traces.vehicle` creates a `namedTrace('vehicle', { level })` when `traceLevels.vehicle`
- * is configured. Call sites should optional-call the method, e.g.
- * `traces.vehicle.log?.('vehicleJob.selected', { vehicleUid })`.
+ * Entity-attached channels (`vehicle`, `position`, `npc`, `script`) are callable with a
+ * compulsory subject — `traces.vehicle(vehicle).log?.(...)` — delegating to `traceFor`.
+ * Hybrid channels (`convey`, `work`) take a named subject bag — `traces.convey({ alveolus })`.
+ * Entity-less channels stay a plain `TraceSink` — `traces.queue.log?.(...)`.
+ *
+ * `assert` follows the same rule: `traces.vehicle(vehicle).assert?.(cond, msg)` skips
+ * evaluating the condition when the channel's `assert` verb is disabled.
+ *
+ * Tests can still assign a backing sink (`traces.vehicle = collector`); the callable
+ * accessors resolve through it via `traceFor`, and `delete traces.vehicle` clears it.
  */
 export const traces = new Proxy(traceCache, {
 	get(target, property, receiver) {
 		if (typeof property !== 'string') return Reflect.get(target, property, receiver)
+		// The `traces` proxy target IS `traceCache`: `in` checks and reads below
+		// must use `target`, never the proxy itself, or the `get` trap recurses.
+		const kind = traceChannelKind(property)
+		if (kind === 'attached') return attachedTraceAccessor(property)
+		if (kind === 'hybrid') return hybridTraceAccessor(property)
 		if (property in target) return target[property]
 		const trace = createConfiguredTrace(property)
 		if (trace) target[property] = trace
@@ -434,15 +691,63 @@ export const traces = new Proxy(traceCache, {
 	},
 	set(target, property, value, receiver) {
 		if (typeof property !== 'string') return Reflect.set(target, property, value, receiver)
-		if (value === undefined) delete target[property]
-		else target[property] = value as TraceSink
+		if (value === undefined) {
+			delete target[property]
+			delete traceAccessorCache[property]
+			return true
+		}
+		target[property] = value as TraceSink
+		// Drop the cached callable so the next read re-resolves through the new sink.
+		delete traceAccessorCache[property]
 		return true
 	},
 	deleteProperty(target, property) {
-		if (typeof property === 'string') delete target[property]
+		if (typeof property === 'string') {
+			delete target[property]
+			delete traceAccessorCache[property]
+		}
 		return true
 	},
-}) as Record<string, TraceSink>
+}) as Record<string, TraceSink> & {
+	vehicle: AttachedTraceAccessor
+	position: AttachedTraceAccessor
+	npc: AttachedTraceAccessor
+	script: AttachedTraceAccessor
+	convey: HybridTraceAccessor
+	work: HybridTraceAccessor
+}
+
+/**
+ * A sink whose console-like methods are all `undefined`, so `?.` and
+ * `if (sink.log)` guards short-circuit without evaluating payload builders.
+ * Returned by {@link traceFor} when a channel is not configured.
+ */
+const MUTED_TRACE: TraceSink = {
+	read: () => '',
+	display: () => {},
+	reset: () => {},
+	setLevel: () => {},
+}
+
+/**
+ * Resolve a trace channel against the per-entity watch filter.
+ *
+ * At the `debug` verb, `traceFor(channel, subject)` returns a view whose `log`
+ * (and friends) are enabled only for watched subjects — watched entities log at
+ * full detail while everyone else keeps `warn`-level behaviour with `log`
+ * `undefined` (its argument expressions never evaluated). Any other level returns
+ * the live channel sink unchanged:
+ *
+ * ```ts
+ * traceFor('vehicle', vehicle).log?.('vehicleJob.dock.check', { ... })
+ * ```
+ */
+export function traceFor(channel: string, subject: unknown): TraceSink {
+	const sink = underlyingTraceSink(channel)
+	if (!sink) return MUTED_TRACE
+	if (sink instanceof NamedTraceList) return sink.forSubject(subject)
+	return sink
+}
 
 function createConfiguredProfile(name: string): ProfileSink {
 	return namedProfile(name, { level: profileLevels[name] })
@@ -516,6 +821,9 @@ type ConsoleTrapDocument = {
 type BrowserDebugGlobal = typeof globalThis & {
 	traces?: typeof traces
 	profile?: typeof profile
+	watch?: typeof watch
+	unwatch?: typeof unwatch
+	traceFor?: typeof traceFor
 	window?: unknown
 	document?: ConsoleTrapDocument
 	addEventListener?: (type: string, listener: (event: ConsoleTrapEvent) => void) => void
@@ -532,6 +840,9 @@ const browserGlobal = globalThis as BrowserDebugGlobal
 if (browserGlobal.window !== undefined) {
 	browserGlobal.traces = traces
 	browserGlobal.profile = profile
+	browserGlobal.watch = watch
+	browserGlobal.unwatch = unwatch
+	browserGlobal.traceFor = traceFor
 }
 
 //Object.assign(reactiveOptions, debugPreset)

@@ -74,9 +74,7 @@
 		"underway": "Underway",
 		"cargo": "Cargo",
 		"lineAssignment": {
-			"section": "Assigned lines",
 			"assigned": "Lines",
-			"add": "Add line",
 			"filter": "Filter lines...",
 			"emptyAssigned": "No lines assigned",
 			"emptyAvailable": "No freight lines available",

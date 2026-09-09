@@ -1,5 +1,7 @@
 import { defer, reactive } from 'mutts'
 import { isConstructionSiteShell } from 'ssh/build-site'
+import { debugObjectId } from 'ssh/dev/debug-object-id'
+import { traces } from 'ssh/dev/debug'
 import type { Game } from 'ssh/game'
 import { GameObject } from 'ssh/game/object'
 import type { Hive } from 'ssh/hive/hive'
@@ -21,6 +23,7 @@ import {
 	tileSize,
 	toAxialCoord,
 } from 'ssh/utils'
+import type { Clocked } from 'ssh/utils/clock'
 import { AxialKeyMap } from 'ssh/utils/mem'
 import { AlveolusGate } from './border/alveolus-gate'
 import { TileBorder, type TileBorderContent } from './border/border'
@@ -64,6 +67,58 @@ export class HexBoard extends GameObject {
 		return tiles
 	}
 
+	/**
+	 * Read-only snapshot of board occupancy for diagnosing "two characters queued
+	 * facing each other, no exception" deadlocks. Exposes each occupied tile, the
+	 * ordered occupants, and — for every queuer — who it is waiting on and what
+	 * step each occupant is running. Pure and side-effect free.
+	 */
+	queueDiagnostics(): Array<{
+		coord: { q: number; r: number }
+		occupants: Array<{
+			name: string
+			uid: string
+			step: string
+			driving: boolean
+		}>
+	}> {
+		const result: Array<{
+			coord: { q: number; r: number }
+			occupants: Array<{ name: string; uid: string; step: string; driving: boolean }>
+		}> = []
+		for (const coord of this.occupied.coords()) {
+			const occupation = this.occupied.get(coord)
+			if (!occupation?.length) continue
+			result.push({
+				coord: { q: coord.q, r: coord.r },
+				occupants: occupation.map((character) => ({
+					name: character.name,
+					uid: debugObjectId(character) ?? '',
+					step: character.stepExecutor?.constructor.name ?? 'none',
+					driving: character.driving,
+				})),
+			})
+		}
+		return result
+	}
+
+	/**
+	 * Self-rescheduling watchdog that periodically classifies every stalled queue
+	 * waiter (a `QueueStep` that has not been `pass()`ed within one scan interval)
+	 * so a waiting circle — or a "front occupant is free but the pass event never
+	 * fired" regression — surfaces on `traces.queue` instead of only via a manual
+	 * `queueDiagnostics()` dump.
+	 *
+	 * Three diagnoses are distinguished per waiter:
+	 * - `waiting-on`      — the front occupant of the target tile is still active
+	 *                       (a real, non-empty occupation the waiter is legitimately behind).
+	 * - `free-front`      — the waiter is at the FRONT of its queue (`passed` should
+	 *                       already be true) but its `QueueStep` has not completed:
+	 *                       the pass/front event failed to fire. This is a bug, not a wait.
+	 * - `orphaned`        — the waiter's target tile has no tracked occupation at all.
+	 */
+	private readonly queueWatchdog!: Clocked
+
 	*tilesAround(center: Positioned, radius: number): Generator<Tile> {
 		const centerCoord = toAxialCoord(center)
 		if (!centerCoord) return
@@ -80,6 +135,94 @@ export class HexBoard extends GameObject {
 		super(game)
 		this.looseGoods = new LooseGoods(game)
 		this.zoneManager = new ZoneManager()
+		const board = this
+		this.queueWatchdog = {
+			game: this.game,
+			get remainingDs() {
+				return 0
+			},
+			progress() {},
+			complete() {
+				if (board.destroyed) return undefined
+				board.scanQueueWaiters()
+				board.game.clock.begin(board.queueWatchdog, 0.5)
+				return undefined
+			},
+		}
+		this.game.clock.begin(this.queueWatchdog, 0.5)
+	}
+
+	/**
+	 * Classifies every character currently blocked on a `QueueStep` and reports
+	 * the abnormal cases on `traces.queue`. See {@link queueWatchdog} for the
+	 * three diagnoses. A `waiting-on` case is normal and only reported at `log`
+	 * level (disabled by default); `free-front` and `orphaned` are bugs and are
+	 * emitted at `warn` so test diagnostics fail on them.
+	 */
+	private scanQueueWaiters(): void {
+		if (this.destroyed) return
+		for (const coord of this.occupied.coords()) {
+			const occupation = this.occupied.get(coord)
+			if (!occupation?.length) continue
+			for (let i = 0; i < occupation.length; i++) {
+				const character = occupation[i]!
+				const step = character.stepExecutor
+				if (!(step instanceof QueueStep)) continue
+				const targetCoord = toAxialCoord(step.target)
+				const targetOccupants = targetCoord
+					? (this.occupied.get(targetCoord) ?? [])
+					: []
+				const front = targetOccupants[0]
+
+				if (front === undefined) {
+					traces.queue.warn?.('queue.waiter.orphaned', {
+						waiter: character.name,
+						waiterUid: debugObjectId(character) ?? '',
+						waitingAt: { q: coord.q, r: coord.r },
+						targetCoord,
+					})
+					continue
+				}
+
+				if (front === character) {
+					// At the front of the target's queue but still queued: the pass
+					// event that should have completed this QueueStep never fired.
+					traces.queue.warn?.('queue.waiter.free-front', {
+						waiter: character.name,
+						waiterUid: debugObjectId(character) ?? '',
+						targetCoord,
+						passed: step.passed,
+					})
+					continue
+				}
+
+				// The front occupant is itself queuing — the waiter is blocked behind
+				// a waiting chain. If that chain eventually cycles back to this waiter,
+				// this is a true head-on circular wait; even without a full cycle, a
+				// queue-behind-a-queuer is suspicious enough to surface at warn.
+				if (front.stepExecutor instanceof QueueStep) {
+					traces.queue.warn?.('queue.waiter.blocked-by-queuer', {
+						waiter: character.name,
+						waiterUid: debugObjectId(character) ?? '',
+						waitingOn: front.name,
+						waitingOnUid: debugObjectId(front) ?? '',
+						frontTarget: toAxialCoord(front.stepExecutor.target),
+						targetCoord,
+					})
+					continue
+				}
+
+				traces.queue.log?.('queue.waiter.waiting-on', {
+					waiter: character.name,
+					waiterUid: debugObjectId(character) ?? '',
+					waitingOn: front.name,
+					waitingOnUid: debugObjectId(front) ?? '',
+					frontStep: front.stepExecutor?.constructor.name ?? 'none',
+					frontDriving: front.driving,
+					targetCoord,
+				})
+			}
+		}
 	}
 
 	hitTest(worldX: number, worldY: number, selectedAction?: string): any {

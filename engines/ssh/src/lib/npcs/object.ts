@@ -45,7 +45,10 @@ export function withScripted<T extends abstract new (...args: any[]) => GameObje
 						this.begin(firstAction)
 					}
 				} catch (e) {
-					console.warn('Script error on gameStart', e)
+					// Bootstrapping the first action must surface: a broken initial
+					// plan would otherwise leave the character idle with no trace.
+					traces.script(this).error?.('Script error on gameStart', e)
+					throw e
 				}
 			})
 		}
@@ -74,7 +77,7 @@ export function withScripted<T extends abstract new (...args: any[]) => GameObje
 		makeRun() {
 			try {
 				if (!this.runningScript.state) {
-					console.warn(
+					traces.script(this).warn?.(
 						'Script finished but still in runningScripts, removing',
 						this.runningScript.name
 					)
@@ -83,7 +86,7 @@ export function withScripted<T extends abstract new (...args: any[]) => GameObje
 				}
 				// Validate scriptsContext before running
 				if (!this.scriptsContext) {
-					console.error('[makeRun] scriptsContext is undefined!', {
+					traces.script(this).error?.('[makeRun] scriptsContext is undefined!', {
 						character: (this as any).name ?? 'unknown',
 						runningScript: this.runningScript.name,
 					})
@@ -93,7 +96,7 @@ export function withScripted<T extends abstract new (...args: any[]) => GameObje
 				const criticalNamespaces = ['inventory', 'walk', 'find', 'work', 'selfCare', 'plan']
 				for (const ns of criticalNamespaces) {
 					if (!(ns in this.scriptsContext)) {
-						console.error(`[makeRun] scriptsContext missing namespace: ${ns}`, {
+						traces.script(this).error?.(`[makeRun] scriptsContext missing namespace: ${ns}`, {
 							character: (this as any).name ?? 'unknown',
 							runningScript: this.runningScript.name,
 							availableKeys: Object.keys(this.scriptsContext),
@@ -114,7 +117,7 @@ export function withScripted<T extends abstract new (...args: any[]) => GameObje
 						summarizeScriptExecutionForInfiniteFail(script)
 					),
 				}
-				traces.script.error?.('script.makeRun.error', diagnostic)
+				traces.script(this).error?.('script.makeRun.error', diagnostic)
 				throw error
 			}
 		}
@@ -165,7 +168,14 @@ export function withScripted<T extends abstract new (...args: any[]) => GameObje
 				const { type, value } = this.makeRun()
 				loopCount.push({ name: executingName, type, value })
 				if (loopCount.length > 50) {
-					console.error('High loop count in nextStep, throttling', executingName, type, value)
+					// A script spinning without yielding a step is a real bug (infinite
+					// loop in script logic). Surface at error level — test diagnostics
+					// fail on it unless explicitly allowed — then throttle.
+					traces.npc(this).error?.('High loop count in nextStep, throttling', {
+						executingName,
+						type,
+						value,
+					})
 					this.runningScripts = []
 					this.stepExecutor = new PonderingStep(this as any, 0.25)
 					return
@@ -200,11 +210,11 @@ export function withScripted<T extends abstract new (...args: any[]) => GameObje
 									: undefined,
 								planner,
 							}
-							console.error(
+							traces.npc(this).error?.(
 								`Action infinite fail: ${executingName} returned immediately and was selected again.`,
 								context
 							)
-							traces.npc.log?.('nextStep.infiniteFail', {
+							traces.npc(this).log?.('nextStep.infiniteFail', {
 								...context,
 								loopTail: loopEntriesForNpcTrace(loopCount, 5),
 							})
@@ -308,12 +318,12 @@ export function withScripted<T extends abstract new (...args: any[]) => GameObje
 				// non-resumable — the character re-plans through the normal selection path. Log it
 				// at warn level; genuine serialization bugs stay at error level.
 				if (error instanceof NonResumableScriptStateError) {
-					traces.script.warn?.('script.serialize.non-resumable', {
+					traces.script(this).warn?.('script.serialize.non-resumable', {
 						character: (this as unknown as { name?: string }).name,
 						reason: error.message,
 					})
 				} else {
-					traces.script.error?.('script.serialize.failed', {
+					traces.script(this).error?.('script.serialize.failed', {
 						character: (this as unknown as { name?: string }).name,
 						error,
 					})
@@ -358,7 +368,7 @@ export function withScripted<T extends abstract new (...args: any[]) => GameObje
 						.map((s: any) => {
 							const gameScript = getGameScript(s.scriptFileName)
 							if (!gameScript) {
-								console.warn(
+								traces.script(this).warn?.(
 									`Could not find GameScript for file: ${s.scriptFileName}. Skipping script restoration.`
 								)
 								return null
@@ -372,7 +382,7 @@ export function withScripted<T extends abstract new (...args: any[]) => GameObje
 						.filter((s): s is ScriptExecution => s !== null)
 				} catch (error) {
 					// An unresolvable reference means the script cannot be faithfully resumed.
-					traces.script.error?.('script.restore.failed', {
+					traces.script(this).error?.('script.restore.failed', {
 						character: (this as unknown as { name?: string }).name,
 						error,
 					})

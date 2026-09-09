@@ -4,6 +4,7 @@ import {
 	checkPlacementConnectivity,
 	collectAdjacentBuildingFootprints,
 	coordKey,
+	findBlockedFootprintTiles,
 	placementConnectsFreeSpace,
 	placementKeepsEntrancesReachable,
 	placementKeepsFootprintReachable,
@@ -32,8 +33,7 @@ describe('placementConnectsFreeSpace', () => {
 		const result = placementConnectsFreeSpace(board, [c(2, 0)])
 		expect(result.ok).toBe(false)
 		expect(result.ok === false && result.reason).toBe('partitions-free-space')
-		// On a finite board one side is "locked" (the side disconnected from ring[0]);
-		// which side depends on neighbour order, so just assert exactly one ring tile.
+		// Finite board: locked = minority side (1 ring tile either way here).
 		if (!result.ok && result.reason === 'partitions-free-space') {
 			expect(result.locked).toHaveLength(1)
 			expect(result.locked[0]).toMatchObject(
@@ -42,6 +42,40 @@ describe('placementConnectsFreeSpace', () => {
 		} else {
 			throw new Error('expected partitions-free-space')
 		}
+	})
+
+	it('locks the minority side, not the open board', () => {
+		// Corridor q=0..9 at r=0. Occupying (1,0) splits a 1-tile pocket (0,0)
+		// from the 8-tile open side — locked must be the pocket, not the board.
+		// (Which ring tile that is depends on neighbour order: the ring is
+		// {(0,0),(2,0)} and the minority side has exactly 1 tile.)
+		const board = makeBoard(Array.from({ length: 10 }, (_, q) => c(q, 0)))
+		const result = placementConnectsFreeSpace(board, [c(1, 0)])
+		expect(result.ok).toBe(false)
+		if (!result.ok && result.reason === 'partitions-free-space') {
+			expect(result.locked).toHaveLength(1)
+			expect([c(0, 0), c(2, 0)]).toContainEqual(result.locked[0])
+		} else {
+			throw new Error('expected partitions-free-space')
+		}
+	})
+
+	it('early-exits on open boards: ring joins within footprint neighbourhood', () => {
+		// Open 21×21 blob; occupying the center must NOT walk the whole board.
+		// Count isTraversable calls: ring-size neighbourhood, not board-size.
+		const free = new Set<string>()
+		for (let q = -10; q <= 10; q++) for (let r = -10; r <= 10; r++) free.add(`${q},${r}`)
+		let calls = 0
+		const board: BoardTopology = {
+			neighbors: (coord) => axial.neighbors(coord),
+			isTraversable: (coord) => {
+				calls++
+				return free.has(coordKey(coord))
+			},
+		}
+		expect(placementConnectsFreeSpace(board, [c(0, 0)]).ok).toBe(true)
+		// Ring (6) + their neighbours until the ring joins (~a few dozen), not ~440.
+		expect(calls).toBeLessThan(100)
 	})
 
 	it('allows a non-separating placement at the corridor end', () => {
@@ -250,5 +284,36 @@ describe('validateFootprintConnectivity', () => {
 		const open = validateFootprintConnectivity(game.hex, [c(2, 0)])
 		expect(open.ok).toBe(true)
 		expect(open.victims).toEqual([])
+	})
+})
+
+describe('findBlockedFootprintTiles', () => {
+	it('reports empty when every footprint tile keeps an opening', () => {
+		// 2-wide region; occupying (2,0) leaves both (1,0) and (2,0) with openings.
+		const board = makeBoard([c(0, 0), c(1, 0), c(2, 0), c(0, 1), c(1, 1), c(2, 1)])
+		expect(findBlockedFootprintTiles(board, [c(2, 0)], [c(1, 0), c(2, 0)])).toEqual([])
+	})
+
+	it('catches a ghost walling in an earlier draft tile (existential passes, universal fails)', () => {
+		// Draft tile (1,0) + ghost (2,0): (2,0) still touches free (3,0), so the
+		// footprint as a whole is reachable — but (1,0) lost its only opening (2,0).
+		const board = makeBoard([c(3, 0)])
+		expect(placementKeepsFootprintReachable(board, [c(1, 0), c(2, 0)], [c(1, 0), c(2, 0)])).toBe(
+			true
+		)
+		expect(findBlockedFootprintTiles(board, [c(1, 0), c(2, 0)])).toEqual([c(1, 0)])
+	})
+
+	it('catches two adjacent ghost tiles walling each other', () => {
+		// Ghosts (1,0)+(2,0) with no free neighbour left: both blocked.
+		const board = makeBoard([])
+		expect(findBlockedFootprintTiles(board, [c(1, 0), c(2, 0)])).toEqual([c(1, 0), c(2, 0)])
+	})
+
+	it('refuses the placement via checkPlacementConnectivity', () => {
+		const board = makeBoard([c(3, 0)])
+		const check = checkPlacementConnectivity(board, [c(1, 0), c(2, 0)], [])
+		expect(check.ok).toBe(false)
+		expect(check.blockedFootprintTiles).toEqual([c(1, 0)])
 	})
 })

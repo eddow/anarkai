@@ -143,6 +143,10 @@ vi.mock('ssh/game/object', async (importOriginal) => {
 	return {
 		...actual,
 		resolveSelectableHoverObject: vi.fn((object: unknown) => object),
+		// Test doubles are plain objects with `logs`, not registered
+		// `InteractiveLogObject`s — treat any object with a `logs` array as watchable.
+		isInteractiveLogObject: (object: unknown) =>
+			!!object && typeof object === 'object' && Array.isArray((object as any).logs),
 	}
 })
 
@@ -192,6 +196,7 @@ const getTool = (
 
 const createScope = () => ({
 	panelApi: {
+		id: `panel-${Math.random().toString(36).slice(2)}`,
 		updateParameters,
 	},
 	dockviewApi: {
@@ -255,6 +260,7 @@ describe('SelectionInfoWidget', () => {
 		expect(container.textContent).toContain('log line 2')
 		expect(getTool(props, 'Go to Object')).toBeDefined()
 		expect(getTool(props, 'Pin Panel')).toBeDefined()
+		expect(getTool(props, 'Debug object')).toBeDefined()
 	})
 
 	it('renders HiveProperties for a synthetic hive uid', () => {
@@ -433,5 +439,49 @@ describe('SelectionInfoWidget', () => {
 
 		tab!.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }))
 		expect(globals.mrg.hoveredObject).toBeUndefined()
+	})
+
+	it('shows a debug toggle for log-bearing objects and toggles the watch filter', async () => {
+		const watchMod = await import('ssh/dev/watch')
+		watchMod.resetWatched()
+		// Select BEFORE latch so the tools effect sees the object on first run.
+		globals.selectionState.selectedObject = gameObject as any
+		await Promise.resolve()
+		const props = createProps()
+		const scope = createScope()
+
+		try {
+			stop = latch(container, <SelectionInfoWidget {...props} />, scope as never)
+			await Promise.resolve()
+			await Promise.resolve()
+
+			expect(props.context.tools?.map((t) => t.ariaLabel)).toEqual(
+				expect.arrayContaining(['Debug object'])
+			)
+			expect(watchMod.isWatched(gameObject)).toBe(false)
+
+			getTool(props, 'Debug object')?.onClick()
+			await Promise.resolve()
+			expect(watchMod.isWatched(gameObject)).toBe(true)
+			expect(getTool(props, 'Stop debugging object')).toBeDefined()
+
+			getTool(props, 'Stop debugging object')?.onClick()
+			await Promise.resolve()
+			expect(watchMod.isWatched(gameObject)).toBe(false)
+			expect(getTool(props, 'Debug object')).toBeDefined()
+		} finally {
+			watchMod.resetWatched()
+		}
+	})
+
+	it('hides the debug toggle when nothing is selected', () => {
+		globals.selectionState.selectedObject = undefined
+		const props = createProps()
+		const scope = createScope()
+
+		stop = latch(container, <SelectionInfoWidget {...props} />, scope as never)
+
+		expect(getTool(props, 'Debug object')).toBeUndefined()
+		expect(getTool(props, 'Stop debugging object')).toBeUndefined()
 	})
 })

@@ -63,7 +63,9 @@ function createTraceCollector() {
 		debug: (message?: unknown, ..._rest: unknown[]) => pushVehicleDebug(message),
 		warn: noop,
 		error: noop,
-		assert: noop,
+		assert: (condition: unknown, ...args: unknown[]) => {
+			if (!condition) throw new Error(`Assertion failure: ${String(args[0] ?? '')}`)
+		},
 	}
 	const npc = {
 		log: captureNpc('log'),

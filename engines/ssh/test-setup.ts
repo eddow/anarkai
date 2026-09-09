@@ -25,6 +25,7 @@ import {
 	traceVerbs,
 } from './src/lib/dev/debug.ts'
 import type { ProfileLevel } from './src/lib/dev/profile.ts'
+import { resetWatched } from './src/lib/dev/watch.ts'
 
 type TestDiagnosticEntry = {
 	level: 'warn' | 'assert' | 'error'
@@ -227,6 +228,7 @@ beforeEach(() => {
 	options.stalledMovementScanIntervalMs = 0
 	disconnectAllTraces()
 	disconnectAllProfiles()
+	resetWatched()
 	applyRequestedTraceLevels()
 	applyRequestedProfileLevels()
 	resetDebugActiveAllocations()
@@ -248,6 +250,7 @@ afterEach(async () => {
 	options.stalledMovementScanIntervalMs = defaultStalledMovementScanIntervalMs
 	disconnectAllTraces()
 	disconnectAllProfiles()
+	resetWatched()
 	resetDebugActiveAllocations()
 	reset()
 	if (unexpectedDiagnostics.length > 0) {

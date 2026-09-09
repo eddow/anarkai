@@ -7,6 +7,7 @@ import type { StorageAlveolus } from 'ssh/hive/storage'
 import type { HomePlan } from 'ssh/types/base'
 import { describe, expect, it } from 'vitest'
 import { TestEngine } from '../test-engine'
+import { bindOperatedWheelbarrowOffload } from '../test-engine/vehicle-bind'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -80,6 +81,28 @@ describe('Script execution regressions', () => {
 			} as any
 
 			expect(worker.scriptsContext.walk.moveTo({ q: 1, r: 0 })).toBeUndefined()
+		} finally {
+			await engine.destroy()
+		}
+	})
+
+	it('walk.enter does not yank a driving vehicle off its dock approach', async () => {
+		const engine = new TestEngine({ terrainSeed: 1234, characterCount: 0 })
+		await engine.init()
+
+		try {
+			const vehicle = engine.game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
+			const driver = engine.spawnCharacter('Driver', { q: 0, r: 0 })
+			bindOperatedWheelbarrowOffload(driver, vehicle)
+			driver.onboard()
+
+			// The vehicle is mid-approach at a fractional position near its tile; a
+			// driving character's `walk.enter` must NOT move it to `_tile` center
+			// (that is what produced the left/right dock-approach vibration).
+			const before = { ...(vehicle.position as { q: number; r: number }) }
+			const step = driver.scriptsContext.walk.enter()
+			expect(step).toBeUndefined()
+			expect(vehicle.position).toMatchObject(before)
 		} finally {
 			await engine.destroy()
 		}

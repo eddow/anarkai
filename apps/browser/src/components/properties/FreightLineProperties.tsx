@@ -20,9 +20,7 @@ import type { Vehicle } from 'ssh/population/vehicle/entity'
 import { type AxialCoord, toAxialCoord } from 'ssh/utils'
 import { filterSet, mapSet } from 'ssh/utils/iter'
 import FreightStopList from '../FreightStopList'
-import HardListSearchPicker, { type HardListSearchPickerItem } from '../HardListSearchPicker'
-import InspectorObjectLink from '../InspectorObjectLink'
-import LinkedEntityControl from '../LinkedEntityControl'
+import AssignedLinksPicker, { type AssignedLinksPickerItem } from '../AssignedLinksPicker'
 import PropertyGrid from '../PropertyGrid'
 import PropertyGridRow from '../PropertyGridRow'
 
@@ -90,38 +88,6 @@ css`
 	padding-inline-start: 1.1rem;
 	font-size: 0.78rem;
 	color: var(--ak-danger, #c44);
-}
-
-.freight-line-properties__assignment-list {
-	display: flex;
-	flex-direction: column;
-	gap: 0.4rem;
-}
-
-.freight-line-properties__assignment-row {
-	display: flex;
-	align-items: center;
-	gap: 0.45rem;
-	flex-wrap: wrap;
-	padding: 0.35rem 0.45rem;
-	border: 1px solid color-mix(in srgb, var(--ak-text-muted) 18%, transparent);
-	border-radius: 0.4rem;
-	background: color-mix(in srgb, var(--ak-surface-1) 78%, transparent);
-}
-
-.freight-line-properties__assignment-remove {
-	margin-inline-start: auto;
-	border: 0;
-	background: transparent;
-	color: var(--ak-danger, #c44);
-	cursor: pointer;
-	font-size: 1rem;
-	line-height: 1;
-}
-
-.freight-line-properties__assignment-empty {
-	color: var(--ak-text-muted);
-	font-size: 0.78rem;
 }
 
 .freight-line-properties__route-summary {
@@ -265,9 +231,7 @@ const icon = (source: string) => renderAnarkaiIcon(source, { size: 16 })
 const lineAssignmentText = () => {
 	const line = T.line as typeof T.line & {
 		vehicleAssignment?: {
-			section?: string
 			assigned?: string
-			add?: string
 			filter?: string
 			emptyAssigned?: string
 			emptyAvailable?: string
@@ -275,9 +239,7 @@ const lineAssignmentText = () => {
 		}
 	}
 	return {
-		section: line.vehicleAssignment?.section ?? 'Assigned vehicles',
 		assigned: line.vehicleAssignment?.assigned ?? 'Vehicles',
-		add: line.vehicleAssignment?.add ?? 'Add vehicle',
 		filter: line.vehicleAssignment?.filter ?? 'Filter vehicles...',
 		emptyAssigned: line.vehicleAssignment?.emptyAssigned ?? 'No vehicles assigned',
 		emptyAvailable: line.vehicleAssignment?.emptyAvailable ?? 'No compatible vehicles available',
@@ -311,7 +273,7 @@ function assignedVehiclesForLine(
 function assignableVehicleItems(
 	game: Game | undefined,
 	line: FreightLineDefinition | undefined
-): (HardListSearchPickerItem & { item: Vehicle })[] {
+): (AssignedLinksPickerItem & { item: Vehicle })[] {
 	if (!game?.vehicles || !line) return []
 	const compatible = filterSet(
 		game.vehicles,
@@ -384,7 +346,7 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 		props.onClose?.()
 	}
 
-	const handleAssignVehicle = (item: HardListSearchPickerItem & { item: Vehicle }) => {
+	const handleAssignVehicle = (item: AssignedLinksPickerItem & { item: Vehicle }) => {
 		const line = currentLine()
 		const g = currentGame()
 		const vehicle = item.item
@@ -492,49 +454,23 @@ const FreightLineProperties = (props: FreightLinePropertiesProps) => {
 				{T.line.unavailable}
 			</span>
 			{/* Assigned vehicles */}
-			<InspectorSection if={isAvailable()} title={assignmentText().section} collapsible>
+			<InspectorSection if={isAvailable()} title={assignmentText().assigned} collapsible>
 				<PropertyGrid>
-					<PropertyGridRow label={assignmentText().assigned}>
-						<div class="freight-line-properties__assignment-list">
-							<for each={assignedVehicles()}>
-								{(vehicle) => (
-									<div
-										class="freight-line-properties__assignment-row"
-										data-testid="line-assigned-vehicle"
-									>
-										<LinkedEntityControl object={vehicle} />
-										<InspectorObjectLink object={vehicle} />
-										<button
-											type="button"
-											class="freight-line-properties__assignment-remove"
-											title={assignmentText().remove}
-											aria-label={assignmentText().remove}
-											onClick={() => handleUnassignVehicle(vehicle)}
-											data-testid="line-unassign-vehicle"
-										>
-											×
-										</button>
-									</div>
-								)}
-							</for>
-							<div
-								if={assignedVehicles().length === 0}
-								class="freight-line-properties__assignment-empty"
-							>
-								{assignmentText().emptyAssigned}
-							</div>
-						</div>
-					</PropertyGridRow>
-					<PropertyGridRow label={assignmentText().add}>
-						<HardListSearchPicker
-							items={availableVehicleItems()}
+						<AssignedLinksPicker
+							assigned={assignedVehicles()}
+							availableItems={availableVehicleItems()}
 							onSelect={handleAssignVehicle}
-							placeholder={assignmentText().filter}
-							emptyMessage={assignmentText().emptyAvailable}
-							testId="line-vehicle-picker"
+							onRemove={handleUnassignVehicle}
+							label={assignmentText().assigned}
+							filterPlaceholder={assignmentText().filter}
+							emptyAssigned={assignmentText().emptyAssigned}
+							emptyAvailable={assignmentText().emptyAvailable}
+							removeLabel={assignmentText().remove}
+							pickerTestId="line-vehicle-picker"
+							assignedRowTestId="line-assigned-vehicle"
+							removeButtonTestId="line-unassign-vehicle"
 						/>
-					</PropertyGridRow>
-				</PropertyGrid>
+					</PropertyGrid>
 			</InspectorSection>
 			{/* Stops — collapsible */}
 			<InspectorSection

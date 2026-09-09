@@ -132,17 +132,35 @@ vi.mock('@app/ui/anarkai', () => ({
 	InspectorSection: (props: { children?: JSX.Children }) => <section>{props.children}</section>,
 }))
 
-vi.mock('../ComboSearchPicker', () => ({
+vi.mock('../AssignedLinksPicker', () => ({
 	default: (props: {
-		items?: readonly { item?: unknown; label?: string }[]
+		assigned?: readonly { title?: string }[]
+		availableItems?: readonly { item?: unknown; label?: string }[]
 		onSelect?: (item: { item?: unknown; label?: string }) => void
-		testId?: string
+		onRemove?: (link: { title?: string }) => void
+		pickerTestId?: string
+		assignedRowTestId?: string
+		removeButtonTestId?: string
 	}) => (
 		<div>
-			{(props.items ?? []).map((item) => (
+			{(props.assigned ?? []).map((link) => (
+				<div data-testid={props.assignedRowTestId}>
+					<button type="button" data-testid="inspector-object-link">
+						{link.title ?? 'link'}
+					</button>
+					<button
+						type="button"
+						data-testid={props.removeButtonTestId}
+						onClick={() => props.onRemove?.(link)}
+					>
+						×
+					</button>
+				</div>
+			))}
+			{(props.availableItems ?? []).map((item) => (
 				<button
 					type="button"
-					data-testid={`${props.testId ?? 'search-picker'}-item`}
+					data-testid={`${props.pickerTestId ?? 'search-picker'}-item`}
 					onClick={() => props.onSelect?.(item)}
 				>
 					{item.label}

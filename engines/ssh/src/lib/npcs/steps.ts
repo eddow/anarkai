@@ -10,7 +10,8 @@ import { casing } from 'ssh/utils'
 import type { Clocked } from 'ssh/utils/clock'
 import { axialDistance, type Position, type Positioned } from 'ssh/utils/position'
 import { activityDurations, needUpdate } from '../../../assets/constants'
-import { assert } from '../dev/debug.ts'
+import { assert, traces } from '../dev/debug.ts'
+
 import type { ScriptedObject } from './object'
 import { lerp } from './utils'
 
@@ -142,7 +143,7 @@ export abstract class ASingleStep extends Commitment implements Clocked {
 				return undefined
 			case 'EatStep': {
 				// World-sourced eating cannot be faithfully restored without the consumed good reference.
-				console.warn('[EatStep] deserialize skipped (world eat sources not serialized)')
+				traces.script(character).warn?.('[EatStep] deserialize skipped (world eat sources not serialized)')
 				return undefined
 			}
 			case 'PonderingStep': {
@@ -151,7 +152,7 @@ export abstract class ASingleStep extends Commitment implements Clocked {
 				return step
 			}
 			default:
-				console.warn(`Unknown step type for deserialization: ${data.type}`)
+				traces.script(character).warn?.(`Unknown step type for deserialization: ${data.type}`)
 				return undefined
 		}
 	}
@@ -428,7 +429,7 @@ export class MultiMoveStep extends AEvolutionStep {
 			const expectedMaxDistance = (totalDistance / this.duration) * consumedDt * 2
 			const movedDistance = axialDistanceBetween(startPoint, endPoint)
 			if (movedDistance > expectedMaxDistance + 1e-6) {
-				console.warn(
+				traces.position(this.movements[0]?.who ?? this).warn?.(
 					`[steps] ${this.givenDescription ?? 'multi-move'} moved ${movedDistance.toFixed(3)} in ${consumedDt.toFixed(3)}s, expected <= ${expectedMaxDistance.toFixed(3)}`
 				)
 			}
@@ -555,7 +556,7 @@ export class EatStep extends AEvolutionStep {
 			const commitment = new Commitment(`eat.loose.${food}`)
 			const result = source.looseGood.allocate(commitment)
 			if (result !== undefined) {
-				console.error(`[EatStep] Failed to allocate loose good: ${result}`)
+				traces.script(this.character).error?.(`[EatStep] Failed to allocate loose good: ${result}`)
 				return
 			}
 			commitment.fulfill()
@@ -563,14 +564,14 @@ export class EatStep extends AEvolutionStep {
 			const commitment = new Commitment(`eat.storage.${food}`)
 			const result = source.storage.reserve({ [food]: 1 }, commitment)
 			if (result !== undefined) {
-				console.error(`[EatStep] Failed to reserve storage: ${result}`)
+				traces.script(this.character).error?.(`[EatStep] Failed to reserve storage: ${result}`)
 				return
 			}
 			commitment.fulfill()
 		} else {
 			const removed = character.removePersonalGood(food, 1)
 			if (removed < 1) {
-				console.error(`[EatStep] Failed to consume personal food: ${food}`)
+				traces.script(this.character).error?.(`[EatStep] Failed to consume personal food: ${food}`)
 				return
 			}
 		}

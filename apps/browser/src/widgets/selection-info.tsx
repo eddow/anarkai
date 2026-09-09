@@ -22,6 +22,7 @@ import { Tile } from 'ssh/board/tile'
 import { ZoneObject, ZonesCollectionObject } from 'ssh/board/zone-object'
 import { SettlementTradeObject } from 'ssh/commerce/settlement-trade'
 import { debugObjectId } from 'ssh/dev/debug-object-id'
+import { isWatched, unwatch, watch, watchVersion } from 'ssh/dev/watch'
 import type { SyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import type { InspectorSelectableObject, InteractiveGameObject } from 'ssh/game/object'
 import { resolveSelectableHoverObject } from 'ssh/game/object'
@@ -315,11 +316,47 @@ const SelectionInfoWidget = (
 
 	effect`selection-info:tools`(() => {
 		const tools: SelectionInfoTool[] = []
-		if (current.object?.position) {
+		// Read `current.object` reactively (so selection changes re-run this
+		// effect), but read its `.position` UNTRACKED. For characters, the
+		// `position` getter touches `_positionVersion.n` (character.ts), which
+		// bumps on EVERY movement tick; tracking it here would rebuild this
+		// tools array (and re-add the buttons) every frame. We only need to
+		// know whether a position exists at selection time.
+		const object = current.object
+		if (object && untracked`has-position`(() => object.position !== undefined)) {
 			tools.push({
 				ariaLabel: 'Go to Object',
 				icon: '👁',
 				onClick: goTo,
+			})
+		}
+		// Per-entity debug toggle: puts the object on the trace watch filter so
+		// `debug`-level channels log at full detail for it, and surfaces its
+		// per-entity log below. Any selected object qualifies — real game
+		// objects accumulate logs via `withInteractive`, and synthetic
+		// inspector objects carry a `logs` array.
+		//
+		// `pressed` and `ariaLabel` are getters so the tab's `aria-pressed` /
+		// `aria-label` bindings re-derive reactively via `watchVersion()` — the
+		// tool object itself is STABLE across watch/unwatch. Rebuilding the
+		// tools array here (or reading `watchVersion()` in this effect body)
+		// would tear down + re-add the buttons on every toggle (the
+		// `aria-pressed="false"` blink), because sursaut's `<for>` morph keys
+		// items by identity.
+		const watchable = object as object | undefined
+		if (watchable) {
+			tools.push({
+				get ariaLabel() {
+					return (watchVersion(), isWatched(watchable)) ? 'Stop debugging object' : 'Debug object'
+				},
+				icon: '🔍',
+				get pressed() {
+					return (watchVersion(), isWatched(watchable)) ? 'true' : 'false'
+				},
+				onClick: () => {
+					if (isWatched(watchable)) unwatch(watchable)
+					else watch(watchable)
+				},
 			})
 		}
 		if (!props.params.pinned) {

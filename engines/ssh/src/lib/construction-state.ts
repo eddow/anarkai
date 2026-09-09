@@ -1,6 +1,7 @@
 import { alveoli, construction } from 'engine-rules'
 import { reactive } from 'mutts'
 import type { RoadType } from 'ssh/board/roads'
+import { traces } from 'ssh/dev/debug'
 import { residentialBasicDwellingSite } from 'ssh/residential/constants'
 import type { AlveolusType, GoodType } from 'ssh/types/base'
 
@@ -112,7 +113,9 @@ export function resolveAlveolusVariant(
 			| undefined
 		const found = variants?.[segment]
 		if (!found) {
-			console.warn(
+			// Unknown variant in a save/config: fall back to the resolved prefix but
+			// stay visible at warn level so a silently-downgraded build never hides.
+			traces.work({}).warn?.(
 				`[resolveAlveolusVariant] Unknown variant "${variant}" for "${alveolusType}"; falling back to "${resolvedSegments.join('.') || '(root)'}"`
 			)
 			return {

@@ -38,6 +38,7 @@ export const freightMapPick = reactive({
 
 export const FREIGHT_ADD_STOP_ACTION = 'freight:add-stop'
 
+
 export function isFreightAddStopAction(action = interactionMode.selectedAction): boolean {
 	return action === FREIGHT_ADD_STOP_ACTION
 }
@@ -171,8 +172,9 @@ export function tryConsumeFreightMapPick(
 
 	if (pending.pickKind === 'add-stop') {
 		if (!isFreightAddStopAction()) {
-			traces.ui.assert?.(
-				false,
+			// Stale picker: the user switched tools while a pick was pending.
+			// Expected control flow, not an invariant violation — warn and clear.
+			traces.ui.warn?.(
 				'freight.add-stop.consume: pending picker without matching selectedAction',
 				{ selectedAction: interactionMode.selectedAction, line: pending.line }
 			)
@@ -210,8 +212,9 @@ export function freightMapPickCanConsumeObject(game: Game, object: InteractiveGa
 	if (!pending) return false
 	if (pending.pickKind !== 'add-stop') return true
 	if (!isFreightAddStopAction()) {
-		traces.ui.assert?.(
-			false,
+		// Stale picker: the user switched tools while a pick was pending.
+		// Expected control flow, not an invariant violation — warn and clear.
+		traces.ui.warn?.(
 			'freight.add-stop.can-consume: pending picker without matching selectedAction',
 			{ selectedAction: interactionMode.selectedAction, line: pending.line }
 		)
@@ -240,8 +243,9 @@ export function tryConsumeFreightMapPickRadiusDrag(args: {
 	const pending = freightMapPick.pending
 	if (!pending || pending.pickKind !== 'add-stop') return false
 	if (!isFreightAddStopAction()) {
-		traces.ui.assert?.(
-			false,
+		// Stale picker: the user switched tools while a pick was pending.
+		// Expected control flow, not an invariant violation — warn and clear.
+		traces.ui.warn?.(
 			'freight.add-stop.radius-drag: pending picker without matching selectedAction',
 			{ selectedAction: interactionMode.selectedAction, line: pending.line }
 		)

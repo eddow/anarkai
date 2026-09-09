@@ -9,6 +9,8 @@ export type SelectionInfoTool = {
 	ariaLabel: string
 	icon: string
 	onClick: () => void
+	/** `"true"`/`"false"` for `aria-pressed`. Diagnostic tools make this a reactive getter so the pressed state binds two-way without rebuilding the array. */
+	pressed?: string
 }
 
 export type SelectionInfoContext = {
@@ -58,6 +60,12 @@ css`
 .selection-info-tab__button:hover {
 	opacity: 1;
 	background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.selection-info-tab__button[aria-pressed='true'] {
+	opacity: 1;
+	background: color-mix(in srgb, currentColor 18%, transparent);
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 45%, transparent);
 }
 `
 
@@ -120,6 +128,7 @@ const SelectionInfoTab: DockviewWidget<Record<string, never>, SelectionInfoConte
 						<button
 							class="selection-info-tab__button"
 							aria-label={tool.ariaLabel}
+							aria-pressed={tool.pressed}
 							onClick={tool.onClick}
 						>
 							{tool.icon}

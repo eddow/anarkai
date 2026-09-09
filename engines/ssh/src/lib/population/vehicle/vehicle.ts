@@ -119,6 +119,8 @@ export interface VehicleSerializedState {
 	readonly position: { q: number; r: number }
 	readonly goods?: Partial<Record<GoodType, number>>
 	readonly servedLineIndices?: readonly number[]
+	/** Dev flag: focus this vehicle for entity-scoped tracing (see `ssh/dev/watch`). */
+	readonly watched?: boolean
 	/** New saves use discriminated `kind`; legacy saves are line-only without `kind`, or pre-maintenance offload. */
 	readonly service?:
 		| VehicleServiceSerialized
@@ -140,6 +142,8 @@ export interface VehicleState {
 	/** Freight lines this vehicle serves — serializes to line indexes. */
 	servedLines: FreightLineDefinition[]
 	service?: VehicleLineServiceState
+	/** Dev flag: focus this vehicle for entity-scoped tracing (see `ssh/dev/watch`). */
+	watched?: boolean
 }
 
 /** Persisted line-service state. Maintenance services are transient and never persisted. */

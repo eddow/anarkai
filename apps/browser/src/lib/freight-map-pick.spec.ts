@@ -1,7 +1,6 @@
 // @ts-nocheck
 import { Tile } from 'ssh/board/tile'
 import { SettlementTradeObject } from 'ssh/commerce/settlement-trade'
-import { traces } from 'ssh/dev/debug'
 import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -80,7 +79,6 @@ describe('freight-map-pick', () => {
 	beforeEach(() => {
 		freightMapPick.pending = undefined
 		interactionMode.selectedAction = ''
-		traces.ui = { assert: vi.fn() } as never
 	})
 
 	it('activates add-stop as a board tool', () => {
@@ -238,5 +236,21 @@ describe('freight-map-pick', () => {
 			zone: { kind: 'radius', center: [1, 1], radius: 2 },
 		})
 		expect(freightMapPick.pending).toBeUndefined()
+	})
+
+	it('throws AssertionError when activating without a line or apply callback', async () => {
+		// The browser spec resolves `ssh/dev/debug` through a different bundle
+		// instance than the module under test — compare by name, not identity.
+		const { AssertionError: ExpectedAssertionError } = await import('ssh/dev/debug')
+		expect(ExpectedAssertionError.name).toBe('AssertionError')
+		expect(() => activateFreightAddStopPick({ line: undefined as never, apply: vi.fn() })).toThrow(
+			/freight\.add-stop\.activate: line is required/
+		)
+		expect(() =>
+			activateFreightAddStopPick({
+				line: { id: 'line-1', name: 'Line 1', stops: [] },
+				apply: undefined as never,
+			})
+		).toThrow(/freight\.add-stop\.activate: apply callback is required/)
 	})
 })

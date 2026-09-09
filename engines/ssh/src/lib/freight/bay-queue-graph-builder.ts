@@ -25,6 +25,7 @@
 import type { TileBorder } from 'ssh/board/border/border'
 import type { Tile } from 'ssh/board/tile'
 import { debugObjectId } from 'ssh/dev/debug-object-id'
+import { traces } from 'ssh/dev/debug'
 import type { Game } from 'ssh/game/game'
 import { FreightBayAlveolus } from 'ssh/hive/freight-bay'
 import type {
@@ -99,7 +100,7 @@ export function buildRuntimeQueueGraph(
 		if (sourceIdx === -1) {
 			const msg = `Edge references unknown source handle: ${JSON.stringify(se.from)}`
 			if (repairMode) {
-				console.warn(`[bay-queue] ${msg} — skipping edge`)
+				traces.bay.warn?.(`[bay-queue] ${msg} — skipping edge`)
 				continue
 			}
 			throw new Error(`[bay-queue] ${msg}`)
@@ -107,7 +108,7 @@ export function buildRuntimeQueueGraph(
 		if (targetIdx === -1) {
 			const msg = `Edge references unknown target handle: ${JSON.stringify(se.to)}`
 			if (repairMode) {
-				console.warn(`[bay-queue] ${msg} — skipping edge`)
+				traces.bay.warn?.(`[bay-queue] ${msg} — skipping edge`)
 				continue
 			}
 			throw new Error(`[bay-queue] ${msg}`)
@@ -144,7 +145,7 @@ export function buildBayGroupFromSerialized(
 			if (!found) {
 				const msg = `Service node handle unresolved: ${JSON.stringify(handle)}`
 				if (repairMode) {
-					console.warn(`[bay-queue] ${msg} — omitting from serviceNodes`)
+					traces.bay.warn?.(`[bay-queue] ${msg} — omitting from serviceNodes`)
 					return undefined
 				}
 				throw new Error(`[bay-queue] ${msg}`)
@@ -178,7 +179,7 @@ function resolveSerializedNode(
 				if (!t) {
 					const msg = `Tile handle unresolved: ${JSON.stringify(sn.handle.coord)}`
 					if (repairMode) {
-						console.warn(`[bay-queue] ${msg}`)
+						traces.bay.warn?.(`[bay-queue] ${msg}`)
 					} else {
 						throw new Error(`[bay-queue] ${msg}`)
 					}
@@ -191,7 +192,7 @@ function resolveSerializedNode(
 				if (!b) {
 					const msg = `Border handle unresolved: ${JSON.stringify(sn.handle.coord)}`
 					if (repairMode) {
-						console.warn(`[bay-queue] ${msg}`)
+						traces.bay.warn?.(`[bay-queue] ${msg}`)
 					} else {
 						throw new Error(`[bay-queue] ${msg}`)
 					}
@@ -204,7 +205,7 @@ function resolveSerializedNode(
 				if (!bay) {
 					const msg = `Bay-dock handle unresolved: bayUid=${sn.handle.bayUid} dockIndex=${sn.handle.dockIndex}`
 					if (repairMode) {
-						console.warn(`[bay-queue] ${msg}`)
+						traces.bay.warn?.(`[bay-queue] ${msg}`)
 					} else {
 						throw new Error(`[bay-queue] ${msg}`)
 					}

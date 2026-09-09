@@ -1,6 +1,7 @@
 import type { FreightLineDefinition } from 'ssh/freight/freight-line'
 import type { Game } from 'ssh/game/game'
 import { GameObject, withContainer } from 'ssh/game/object'
+import { isWatched, watch } from 'ssh/dev/watch'
 import type { SaveIndexes } from 'ssh/serialization'
 import { axial } from 'ssh/utils/axial'
 import { toAxialCoord } from 'ssh/utils/position'
@@ -89,6 +90,7 @@ export function serializeVehicles(
 				.map((line) => indexes.freightLines.toIndex(line))
 				.filter((idx): idx is number => idx !== undefined),
 			service,
+			...(isWatched(vehicle) ? { watched: true } : {}),
 		}
 	})
 }
@@ -116,6 +118,7 @@ export function deserializeVehicles(
 			for (const [goodType, qty] of Object.entries(row.goods ?? {})) {
 				;(vehicle.storage as any).addGood(goodType, qty)
 			}
+			if (row.watched) watch(vehicle)
 			return vehicle
 		})
 	)

@@ -40,7 +40,7 @@ export class CharacterVisual extends VisualObject<Character> {
 				const position = this.object.position
 				if (this.object.driving) {
 					this.view.visible = false
-					traces.position.log?.('character.visual.effect', {
+					traces.position(this.object).log?.('character.visual.effect', {
 						event: 'driving-hidden',
 						uid: nextVisualKey(),
 						name: this.object.name,
@@ -59,7 +59,7 @@ export class CharacterVisual extends VisualObject<Character> {
 				if (!world) return
 				this.view.position.set(world.x, world.y)
 				this.view.zIndex = world.y
-				traces.position.log?.('character.visual.effect', {
+				traces.position(this.object).log?.('character.visual.effect', {
 					event: 'position-sync',
 					uid: nextVisualKey(),
 					name: this.object.name,

@@ -9,7 +9,7 @@ import {
 	normalizeConstructionSiteState,
 	setConstructionConsumedGoods,
 } from 'ssh/construction-state'
-import { assert, traces } from 'ssh/dev/debug'
+import { traces } from 'ssh/dev/debug'
 import { resyncDockedVehiclesAtTile } from 'ssh/freight/vehicle-freight-dock-sync'
 import { createAlveolus } from 'ssh/hive'
 import { BuildAlveolus } from 'ssh/hive/build'
@@ -47,7 +47,10 @@ export function createConstructionShell(
 	if (site.target.kind === 'dwelling') {
 		return new BuildDwelling(tile, site.target.tier, site)
 	}
-	assert(false, 'Unsupported construction target')
+	traces.work({ tile }).error?.('construction.unsupported-target', {
+		kind: (site.target as { kind?: unknown }).kind,
+	})
+	throw new Error('Unsupported construction target')
 }
 
 export function constructionShellStepDescription(shell: ConstructionSiteShell): string {
@@ -57,7 +60,10 @@ export function constructionShellStepDescription(shell: ConstructionSiteShell): 
 		return target.variant ? `${desc}#${target.variant}` : desc
 	}
 	if (target.kind === 'dwelling') return `construct.dwelling.${target.tier}`
-	assert(false, 'Unsupported construction target')
+	traces.work({ tile: shell.tile }).error?.('construction.unsupported-target', {
+		kind: (target as { kind?: unknown }).kind,
+	})
+	throw new Error('Unsupported construction target')
 }
 
 export function finalizeConstructionShell(shell: ConstructionSiteShell): void {
@@ -121,7 +127,13 @@ export function finalizeConstructionShell(shell: ConstructionSiteShell): void {
 		}
 		// Final step: create the finished alveolus
 		const alveolus = createAlveolus(target.alveolusType, shell.tile, target.variant)
-		assert(alveolus, 'Target alveolus must exist')
+		if (!alveolus) {
+			traces.work({ tile: shell.tile }).error?.('construction.unknown-alveolus', {
+				alveolusType: target.alveolusType,
+				variant: target.variant,
+			})
+			throw new Error('Target alveolus must exist')
+		}
 		const planned = shell as {
 			planConfiguration?: {
 				ref: Ssh.ConfigurationReference
@@ -153,5 +165,8 @@ export function finalizeConstructionShell(shell: ConstructionSiteShell): void {
 		})
 		return
 	}
-	assert(false, 'Unsupported construction target')
+	traces.work({ tile: shell.tile }).error?.('construction.unsupported-target', {
+		kind: (target as { kind?: unknown }).kind,
+	})
+	throw new Error('Unsupported construction target')
 }

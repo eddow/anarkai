@@ -1,5 +1,6 @@
 import { InteractiveContext, protoCtx, subject } from 'ssh/npcs/scripts'
 import type { Character } from 'ssh/population/character'
+import { traces } from 'ssh/dev/debug'
 import * as gameContent from '../../../../assets/game-content'
 import type { CharacterContract } from '../../../../assets/scripts/contracts'
 // Import all the function classes
@@ -67,9 +68,10 @@ export default function aCharacterContext(character: Character) {
 	for (const key of Object.keys(nsProtos)) {
 		const contextProto = characterContext[key]
 		if (!contextProto) {
-			console.error(`[aCharacterContext] Missing context prototype for namespace: ${key}`)
-			console.error('[aCharacterContext] characterContext:', Object.keys(characterContext))
-			console.error('[aCharacterContext] nsProtos keys:', Object.keys(nsProtos))
+			traces.scriptEngine.error?.(`[aCharacterContext] Missing context prototype for namespace: ${key}`, {
+				characterContext: Object.keys(characterContext),
+				nsProtos: Object.keys(nsProtos),
+			})
 			throw new Error(`Missing context prototype for namespace: ${key}`)
 		}
 		instance[key] = Object.create(contextProto, {
@@ -80,7 +82,7 @@ export default function aCharacterContext(character: Character) {
 	// Verify all namespaces are properly set up
 	for (const key of Object.keys(nsProtos)) {
 		if (!instance[key]) {
-			console.error(`[aCharacterContext] Instance missing namespace after creation: ${key}`)
+			traces.scriptEngine.error?.(`[aCharacterContext] Instance missing namespace after creation: ${key}`)
 			throw new Error(`Instance missing namespace after creation: ${key}`)
 		}
 	}

@@ -95,6 +95,9 @@ describe('Character vehicle seam', () => {
 		first.operates = vehicle
 		expect(vehicle.operator).toBe(first)
 
+		// The double-operates refusal is the *expected* outcome: allow the
+		// trace:vehicle assert-failure diagnostic it emits.
+		;(globalThis as any).allowExpectedDiagnostics?.('already operated by')
 		expect(() => {
 			second.operates = vehicle
 		}).toThrow(AssertionError)
@@ -114,6 +117,9 @@ describe('Character vehicle seam', () => {
 		const vehicle = game.vehicles.createVehicle('wheelbarrow', { q: 0, r: 0 })
 		const character = game.population.createCharacter('NoSvc', { q: 0, r: 0 })
 
+		// The no-service refusal is the *expected* outcome: allow the
+		// trace:vehicle assert-failure diagnostic it emits.
+		;(globalThis as any).allowExpectedDiagnostics?.('must have an active service')
 		expect(() => {
 			character.operates = vehicle
 		}).toThrow(AssertionError)
@@ -291,6 +297,9 @@ describe('Character vehicle seam', () => {
 		game.ticker.stop()
 
 		const character = game.population.createCharacter('Bob', { q: 0, r: 0 })
+		// The refusal is the *expected* outcome: allow the trace:vehicle
+		// assert-failure diagnostic it emits.
+		;(globalThis as any).allowExpectedDiagnostics?.('must have operates before boarding')
 		expect(() => character.onboard()).toThrow(AssertionError)
 	})
 
@@ -309,6 +318,9 @@ describe('Character vehicle seam', () => {
 		const character = game.population.createCharacter('Cyd', { q: 0, r: 0 })
 		vehicle.beginOffloadService(character)
 		character.operates = vehicle
+		// The refusal is the *expected* outcome: allow the trace:vehicle
+		// assert-failure diagnostic it emits.
+		;(globalThis as any).allowExpectedDiagnostics?.('must be at vehicle position before boarding')
 		expect(() => character.onboard()).toThrow(AssertionError)
 	})
 

@@ -18,14 +18,28 @@ export type TraceRow = [TraceLevel, ...TraceValue[]] & {
  * Console-like trace recorder used by `traces.*` channels.
  *
  * Trace methods are optional on purpose: a disabled level is represented by an undefined method, so
- * call sites can write `traces.vehicle.log?.('event', payload)` and avoid building `payload` when
+ * call sites can write `traces.vehicle(vehicle).log?.('event', payload)` and avoid building `payload` when
  * `log` is gated off. Implementations must still expose `read()` and `display()` so every configured
  * sink can be inspected from tests or DevTools.
+ *
+ * `assert` follows the same rule: when the channel's `assert` verb is disabled
+ * the method is `undefined`, so `traces.<channel>.assert?.(expensiveCheck(), msg)`
+ * skips evaluating the condition entirely. When enabled it records an
+ * `assert failure` row and throws an `AssertionError`.
  */
-export type TraceSink = Partial<
+export type TraceSink = 
+Partial<
 	Pick<
 		Console,
-		'assert' | 'debug' | 'error' | 'groupCollapsed' | 'groupEnd' | 'info' | 'log' | 'trace' | 'warn'
+		| 'assert'
+		| 'debug'
+		| 'error'
+		| 'groupCollapsed'
+		| 'groupEnd'
+		| 'info'
+		| 'log'
+		| 'trace'
+		| 'warn'
 	>
 > & {
 	readonly invariant?: Record<string, (...args: unknown[]) => void>

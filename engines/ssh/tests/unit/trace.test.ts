@@ -6,9 +6,11 @@ import {
 	namedTrace,
 	registerTraceInvariants,
 	setTraceTimeSource,
+	traceFor,
 	traceLevels,
 	traces,
 } from '../../src/lib/dev/debug.ts'
+import { isWatched, resetWatched, unwatch, watch } from '../../src/lib/dev/watch.ts'
 import { gatherFreightLine } from '../freight-fixtures'
 
 class UnknownTraceThing {
@@ -162,6 +164,132 @@ describe('safe trace serialization', () => {
 		expect(sink.heads).toEqual(['warning', 'error'])
 	})
 
+	it('debug verb is warn-like generally and log-like for watched subjects', () => {
+		const sink = namedTrace('vehicle', { silent: true, level: 'debug' })
+		traces.vehicle = sink
+		const watched = { id: 'watched' }
+		const other = { id: 'other' }
+		watch(watched)
+		try {
+			// Base sink is warn-like: `log` undefined, `warn` defined.
+			expect(sink.log).toBeUndefined()
+			expect(sink.warn).toBeDefined()
+
+			// Watched subject gets `log` via traceFor and via the callable accessor.
+			const watchedView = traceFor('vehicle', watched)
+			expect(watchedView.log).toBeDefined()
+			expect(traces.vehicle(watched).log).toBeDefined()
+			expect(isWatched(watched)).toBe(true)
+
+			// Unwatched subject keeps the warn-level sink (log undefined).
+			expect(traceFor('vehicle', other).log).toBeUndefined()
+			expect(traces.vehicle(other).log).toBeUndefined()
+
+			// Only the watched subject's log row is recorded.
+			watchedView.log?.('event.watched')
+			traceFor('vehicle', other).log?.('event.other')
+			expect(sink.heads).toEqual(['event.watched'])
+		} finally {
+			unwatch(watched)
+			resetWatched()
+			delete traces.vehicle
+		}
+	})
+
+	it('warn is the default channel level: warn fires for everyone, log stays gated', () => {
+		expect(traceLevels.vehicle).toBe('warn')
+		const sink = namedTrace('warn-default', { silent: true, level: 'warn' })
+		traces.warnDefaultProbe = sink
+		const watched = { id: 'watched-default' }
+		const other = { id: 'other-default' }
+		watch(watched)
+		try {
+			// `warn` fires regardless of watch; `log` stays undefined for everyone.
+			expect(traceFor('warnDefaultProbe', other).warn).toBeDefined()
+			expect(traceFor('warnDefaultProbe', watched).warn).toBeDefined()
+			expect(traceFor('warnDefaultProbe', other).log).toBeUndefined()
+			expect(traceFor('warnDefaultProbe', watched).log).toBeUndefined()
+			traceFor('warnDefaultProbe', other).warn?.('warn.other')
+			traceFor('warnDefaultProbe', watched).warn?.('warn.watched')
+			expect(sink.heads).toEqual(['warn.other', 'warn.watched'])
+		} finally {
+			unwatch(watched)
+			resetWatched()
+			delete traces.warnDefaultProbe
+		}
+	})
+
+	it('hybrid channels resolve the watch subject from the named bag', () => {
+		const sink = namedTrace('convey', { silent: true, level: 'debug' })
+		traces.convey = sink
+		const alveolus = { id: 'alveolus' }
+		const other = { id: 'other' }
+		watch(alveolus)
+		try {
+			expect(traces.convey({ alveolus }).log).toBeDefined()
+			expect(traces.convey({ tile: other }).log).toBeUndefined()
+			traces.convey({ alveolus }).log?.('event.watched')
+			traces.convey({ tile: other }).log?.('event.other')
+			expect(sink.heads).toEqual(['event.watched'])
+		} finally {
+			unwatch(alveolus)
+			resetWatched()
+			delete traces.convey
+		}
+	})
+
+	it('watching a subject arms channels to debug so its log is defined', () => {
+		// Default channel level is 'warn'; before any subject is watched the sink is warn-like.
+		const sink = namedTrace('vehicle', { silent: true, level: 'warn' })
+		traces.vehicle = sink
+		const watched = { id: 'armed-watched' }
+		const other = { id: 'armed-other' }
+		try {
+			// Unwatched, at warn: log undefined even for a "watched" identity (nothing watched yet).
+			expect(sink.level).toBe('warn')
+			expect(traces.vehicle(watched).log).toBeUndefined()
+
+			watch(watched)
+			// Watching arms the channels: the backing sink is now at `debug`.
+			expect(sink.level).toBe('debug')
+			expect(traces.vehicle(watched).log).toBeDefined()
+			// Unwatched subject stays warn-like at the debug verb.
+			expect(traces.vehicle(other).log).toBeUndefined()
+			traces.vehicle(watched).log?.('event.armed')
+			traces.vehicle(other).log?.('event.other')
+			expect(sink.heads).toEqual(['event.armed'])
+
+			unwatch(watched)
+			// Releasing the last watched subject disarms: back to warn.
+			expect(sink.level).toBe('warn')
+			expect(traces.vehicle(watched).log).toBeUndefined()
+		} finally {
+			unwatch(watched)
+			resetWatched()
+			delete traces.vehicle
+		}
+	})
+
+	it('callable attached accessors share the backing sink (setLevel/read/reset apply channel-wide)', () => {
+		const sink = namedTrace('vehicle', { silent: true, level: 'warn' })
+		traces.vehicle = sink
+		try {
+			// Property-style access on the callable forwards to the same backing sink.
+			expect(traces.vehicle.read).toBeDefined()
+			traces.vehicle({ id: 'a' }).warn?.('shared.warn')
+			expect(sink.heads).toEqual(['shared.warn'])
+			expect(traces.vehicle.read()).toContain('shared.warn')
+			traces.vehicle.reset()
+			expect(sink.heads).toEqual([])
+			// setLevel through the accessor changes the channel level.
+			traces.vehicle.setLevel('error')
+			expect(sink.warn).toBeUndefined()
+			expect(sink.error).toBeDefined()
+		} finally {
+			delete traces.vehicle
+		}
+	})
+
 	it('displays stored trace rows on demand', () => {
 		const sink = namedTrace('display', { silent: true })
 		const log = vi.spyOn(console, 'log').mockImplementation(() => {})
@@ -237,18 +365,25 @@ describe('safe trace serialization', () => {
 		}
 	})
 
-	it('does not evaluate disabled trace call arguments', () => {
-		const sink = namedTrace('assert-only', { silent: true, level: 'error' })
+	it('assert is undefined when the channel level suppresses it (?. skips evaluation)', async () => {
+		const sink = namedTrace('assert-suppressed', { silent: true, level: 'error' })
+
+		expect(sink.assert).toBeUndefined()
+		// `?.` short-circuits: the condition is never evaluated, nothing recorded.
 		let evaluated = false
-		const expensive = () => {
-			evaluated = true
-			return false
-		}
-
-		sink.assert?.(expensive(), 'should not be evaluated')
-
+		expect(() => sink.assert?.((evaluated = true) as unknown as boolean, 'suppressed boom')).not.toThrow()
 		expect(evaluated).toBe(false)
 		expect(sink).toHaveLength(0)
+	})
+
+	it('throws AssertionError on failed trace assertions after recording the row', async () => {
+		const { AssertionError } = await import('../../src/lib/dev/debug.ts')
+		;(globalThis as any).allowExpectedDiagnostics?.(/\[trace:assertThrow:assert failure\] boom/)
+		const sink = namedTrace('assertThrow', { silent: true, level: 'assert' })
+
+		expect(() => sink.assert?.(false, 'boom')).toThrow(AssertionError)
+		expect(sink.heads).toEqual(['boom'])
+		expect(sink.read()).toContain('assert failure boom')
 	})
 
 	it('connects invariants when assert is connected', () => {
@@ -266,7 +401,7 @@ describe('safe trace serialization', () => {
 
 		expect(sink.invariant?.['always-fails']).toBeDefined()
 
-		sink.invariant?.['always-fails']('seen')
+		expect(() => sink.invariant?.['always-fails']('seen')).toThrow()
 
 		expect(sink.heads).toEqual(['probe invariant failed'])
 		expect(sink.read()).toContain('assert failure probe invariant failed')
@@ -274,17 +409,23 @@ describe('safe trace serialization', () => {
 		expect(sink.read()).toContain('value: seen')
 	})
 
-	it('disconnects invariants when assert is disconnected', () => {
+	it('disconnects invariants when the level suppresses assert', async () => {
 		registerTraceInvariants('invariantOffProbe', {
-			'expensive-check': () => {
-				throw new Error('should not evaluate')
-			},
+			'expensive-check': () => ({
+				ok: false,
+				message: 'expensive check failed',
+			}),
 		})
 		const sink = namedTrace('invariantOffProbe', { silent: true, level: 'error' })
 
+		// `assert` is level-gated: invariants stay connected only while the
+		// `assert` verb is enabled; at `error` the sink has no assert and no
+		// invariant methods, so violations are skipped, not thrown.
 		expect(sink.assert).toBeUndefined()
-		expect(sink.invariant).toBeUndefined()
-		expect(() => sink.invariant?.['expensive-check']()).not.toThrow()
+		expect(sink.invariant?.['expensive-check']).toBeUndefined()
+		let evaluated = false
+		expect(() => sink.invariant?.['expensive-check']?.((evaluated = true) as never)).not.toThrow()
+		expect(evaluated).toBe(false)
 		expect(sink).toHaveLength(0)
 	})
 

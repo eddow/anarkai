@@ -16,6 +16,7 @@ import { contract, type Goods, type GoodType } from 'ssh/types'
 import type { IdlePlan, PickupPlan, TransferPlan } from 'ssh/types/base'
 import { axial, type Positioned, tileSize, toAxialCoord, toWorldCoord } from 'ssh/utils'
 import { assert, traces } from '../../dev/debug.ts'
+
 import { subject } from '../scripts'
 import { type ASingleStep, DurationStep } from '../steps'
 
@@ -210,7 +211,7 @@ export class InventoryFunctions {
 					}
 					commitment.fulfill()
 				} catch (e) {
-					console.error('Error in dropAsLooseGood finished:', e)
+					traces.convey({ character }).error?.('Error in dropAsLooseGood finished:', e)
 					throw e
 				}
 			})
@@ -257,7 +258,7 @@ export class InventoryFunctions {
 				const canStore = content.storage?.hasRoom(goodType) || 0
 				if (canStore <= 0) reasons.push(`No room for ${goodType} in target`)
 			}
-			traces.vehicle.warn?.('planDropStored: no transfer possible (returning idle)', {
+			traces.vehicle(character.operates ?? character).warn?.('planDropStored: no transfer possible (returning idle)', {
 				reasons: reasons.join(', ') || 'Unknown reason',
 				requested: goods,
 				availables: transport.availables,
@@ -305,7 +306,7 @@ export class InventoryFunctions {
 		}
 
 		if (totalAmount <= 0) {
-			traces.vehicle.warn?.('planGrabStored: no transfer possible (returning idle)', {
+			traces.vehicle(character.operates ?? character).warn?.('planGrabStored: no transfer possible (returning idle)', {
 				requested: goods,
 				characterUid: debugObjectId(character) ?? '',
 				characterName: character.name,
@@ -352,6 +353,12 @@ export class InventoryFunctions {
 		const character = this[subject]
 		const transport = character.transportStorage
 		if (!transport) {
+			traces.vehicle(character).warn?.('planGrabLoose: no transport storage (idle)', {
+				characterUid: debugObjectId(character) ?? '',
+				characterName: character.name,
+				goodType,
+				source: toAxialCoord(source),
+			})
 			return { type: 'idle' as const, duration: 0.1 }
 		}
 
@@ -359,6 +366,13 @@ export class InventoryFunctions {
 		// Here we bail softly if the carrier cannot hold the requested type (same as missing goods).
 		const canGrab = goodType ? transport.hasRoom(goodType) : 1
 		if (canGrab <= 0) {
+			traces.vehicle(character.operates ?? character).warn?.('planGrabLoose: no room in transport (idle)', {
+				characterUid: debugObjectId(character) ?? '',
+				characterName: character.name,
+				goodType,
+				transportRoom: goodType ? transport.hasRoom(goodType) : undefined,
+				source: toAxialCoord(source),
+			})
 			return { type: 'idle' as const, duration: 0.1 }
 		}
 
@@ -376,7 +390,19 @@ export class InventoryFunctions {
 		if (matchingLooseGoods.length === 0) {
 			// Loose goods can disappear between pathfinding and execution (another worker picks them,
 			// they are reserved, etc). Fail softly so the caller can re-plan instead of breaking the
-			// whole reactive batch.
+			// whole reactive batch — but surface *why* so the dead-loop is diagnosable.
+			traces.vehicle(character.operates ?? character).warn?.('planGrabLoose: no matching loose goods (idle)', {
+				characterUid: debugObjectId(character) ?? '',
+				characterName: character.name,
+				goodType,
+				source: toAxialCoord(source),
+				looseGoodCount: looseGoods.length,
+				looseGoods: looseGoods.map((good) => ({
+					goodType: good.goodType,
+					available: good.available,
+					isRemoved: good.isRemoved,
+				})),
+			})
 			return {
 				type: 'idle',
 				duration: 0.1,
@@ -429,7 +455,7 @@ export class InventoryFunctions {
 			.onFulfilled(() => {
 				try {
 					if (!commitment) {
-						console.error('commitment is missing in effectuate callback!', action)
+						traces.convey({ character }).error?.('commitment is missing in effectuate callback!', action)
 						throw new Error('commitment is missing in effectuate callback') // Prevent crash
 					}
 					if ('trace' in commitment && typeof commitment.trace === 'function') {
@@ -437,8 +463,7 @@ export class InventoryFunctions {
 					}
 					commitment.fulfill()
 				} catch (e) {
-					console.error('Error in effectuate finished:', e)
-					console.log('Action:', action)
+					traces.convey({ character }).error?.('Error in effectuate finished:', e)
 					throw e
 				}
 			})

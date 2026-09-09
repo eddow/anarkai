@@ -2,6 +2,7 @@ import { atomic, memoize, reactive } from 'mutts'
 import type { Commitment, FailureReason } from 'ssh/commitment'
 import { type Goods, GoodType } from 'ssh/types/base'
 import { assert, traces } from '../dev/debug.ts'
+
 import {
 	type SlottedStorageSnapshot,
 	slottedStorageAllocationPlan,

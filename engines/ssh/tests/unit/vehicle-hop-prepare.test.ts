@@ -203,6 +203,9 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		const character = game.population.createCharacter('AnchorDockPosition', { q: 2, r: 0 })
 		vehicle.beginLineService(line, loadStop, character)
 
+		// The dock refusal is the *expected* outcome of this test, so allow the
+		// trace:vehicle error diagnostic it emits (never silently swallowed).
+		;(globalThis as any).allowExpectedDiagnostics?.('dock requires vehicle to be on the anchor tile')
 		expect(() => vehicle.dock()).toThrow(/dock requires vehicle to be on the anchor tile/)
 		expect(vehicle.position).toMatchObject({ q: 2, r: 0 })
 		expect(isVehicleLineService(vehicle.service) && vehicle.service.docked).toBe(false)
@@ -310,7 +313,7 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 		expect(vehicle.isDocked).toBe(true)
 	})
 
-	it('vehicleHopDockStep replans instead of asserting when the ChopSaw bay dock tail is stale', async () => {
+	it('vehicleHopDockStep surfaces a stale bay dock tail instead of silently recovering', async () => {
 		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
 		await game.loaded
 		game.ticker.stop()
@@ -344,14 +347,72 @@ describe('vehicleHopPrepare / vehicleHopDockStep service lifecycle', () => {
 			dockEnter: true,
 		}
 
-		const recoveryStep = vf.vehicleHopDockStep(jobPlan)
-		// Either a recovery MoveToStep toward the bay, or an explicit replan signal when no path exists.
-		expect(recoveryStep !== undefined || jobPlan.vehicleHopReplanRequired === true).toBe(true)
+		// No recovery here: the vehicle is away from the bay and `vehicle.dock()`
+		// asserts. The exception must surface (the dock-tail mismatch is a bug that
+		// `driveJobPath`/`walk.until` are responsible for avoiding).
+		;(globalThis as any).allowExpectedDiagnostics?.('dock requires vehicle to be on the anchor tile')
+		expect(() => vf.vehicleHopDockStep(jobPlan)).toThrow(/dock requires vehicle to be on the anchor tile/)
 		expect(vehicle.isDocked).toBe(false)
-		if (recoveryStep) {
-			recoveryStep.tick(Number.POSITIVE_INFINITY)
-			expect(vehicle.position).not.toMatchObject({ q: -2, r: 1 })
+	})
+
+	it('vehicleHopDockStep docks after the hop path drives the vehicle to the bay border', async () => {
+		game = new Game({ terrainSeed: 549, characterCount: 0 }, chopSaw)
+		await game.loaded
+		game.ticker.stop()
+
+		const line = [...game.freightLines].find(
+			(candidate) => candidate.name === 'ChopSaw (0, 0) gather'
+		)
+		const unloadStop = line?.stops[0]
+		const vehicle = [...game.vehicles].find((v: any) => v.name === 'ChopSaw:wheelbarrow1')!
+		if (!line || !unloadStop || !('anchor' in unloadStop) || !vehicle)
+			throw new Error('expected ChopSaw gather fixture')
+
+		vehicle.position = { q: -2, r: 1 }
+		vehicle.beginLineService(line, unloadStop)
+		const character = game.population.createCharacter('ChopSawDockDrive', { q: -2, r: 1 })
+		character.operates = vehicle
+		character.onboard()
+
+		const hop = findVehicleHopJob(game, character)
+		expect(hop?.job).toBe('vehicleHop')
+		expect(hop?.path.length).toBeGreaterThan(0)
+
+		// Drive the vehicle along the hop path to the bay border, mirroring
+		// `driveJobPath`/`walk.until` (the real driver of a dock approach).
+		for (const step of hop!.path) {
+			const targetTile = game.hex.getTile(step)
+			if (targetTile && axial.key(toAxialCoord(targetTile.position)!) === axial.key(step)) {
+				character.position = {
+					q: (toAxialCoord(character.tile.position)!.q + step.q) / 2,
+					r: (toAxialCoord(character.tile.position)!.r + step.r) / 2,
+				}
+				character.stepOn(targetTile)
+			} else {
+				character.position = step
+			}
 		}
+		if (hop!.dockEnter) character.position = character.tile.position
+
+		const vf = new VehicleFunctions()
+		Object.assign(vf, { [subject]: character })
+		const jobPlan: WorkPlan = {
+			type: 'work',
+			job: 'vehicleHop',
+			target: character.tile,
+			urgency: hop!.urgency,
+			fatigue: hop!.fatigue,
+			vehicle,
+			line: line,
+			stopIndex: line.stops.indexOf(unloadStop),
+			path: hop!.path,
+			dockEnter: true,
+		}
+
+		const dockStep = vf.vehicleHopDockStep(jobPlan)
+		expect(dockStep).toBeDefined()
+		dockStep!.finish()
+		expect(vehicle.isDocked).toBe(true)
 	})
 
 	it('vehicleHopPrepare repairs a missing path to a live ChopSaw bay anchor', async () => {

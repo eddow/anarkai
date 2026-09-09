@@ -157,15 +157,71 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 							`[ADVERTISE] MOVEMENT REFUSED: ${goodType} (movement: ${movementId})`
 						)
 					} catch (e) {
-						traces.advertising.log?.(
-							`[ADVERTISE] MOVEMENT FAILED: ${goodType} - ${(e as Error).message}`
+						// Matching runs inside the advertisement flush: a failure here must
+						// not silently drop the demand/provide pair. Record at error level
+						// (test diagnostics fail on it unless explicitly allowed) and
+						// rethrow so the flush surfaces instead of swallowing.
+						traces.advertising.error?.(
+							`[ADVERTISE] MOVEMENT FAILED: ${goodType} - ${(e as Error).message}`,
+							{ advertiser: (advertiser as { name?: unknown }).name, error: e }
 						)
+						throw e
 					}
 				}
 			}
 
 			if (movementCreated) {
 				continue
+			}
+
+			// Reserve-provider matching within the demand side. A `2-use` demander (e.g. a
+			// sawmill) may consume the RESERVE of a storage that advertises `demand 1-buffer`
+			// (a buffered pile below its keep target). The single-relation model makes that
+			// storage a "demander", but `canGive('2-use')` still holds for its reserve. Without
+			// this, a below-buffer pile starves its consumer — and the old workaround of
+			// advertising `provide 2-use` instead hid the pile's refill need from the gather
+			// line ("wood in zone, room in hive, no transport").
+			if (existing && existing.advertisement === 'demand' && ad.advertisement === 'demand') {
+				const reserveProviders =
+					ad.priority === '2-use'
+						? (existing.advertisers[1] ?? []).filter((c) =>
+								c.canGive(goodType as GoodType, '2-use')
+							)
+						: ad.priority === '1-buffer' && advertiser.canGive(goodType as GoodType, '2-use')
+							? [advertiser]
+							: []
+				const useDemanders =
+					ad.priority === '2-use'
+						? [advertiser]
+						: ad.priority === '1-buffer' && advertiser.canGive(goodType as GoodType, '2-use')
+							? (existing.advertisers[2] ?? []).filter((c) => c !== advertiser)
+							: []
+				if (reserveProviders.length > 0 && useDemanders.length > 0) {
+					try {
+						for (const demander of useDemanders) {
+							const matched = this.selectMovement(
+								'demand',
+								demander,
+								reserveProviders,
+								goodType as GoodType,
+								'2-use',
+								'2-use'
+							)
+							if (matched) {
+								traces.advertising.log?.(
+									`[ADVERTISE] RESERVE MATCHED: ${goodType} -> ${(matched as any)?.name ?? 'undefined'}`
+								)
+								break
+							}
+						}
+					} catch (e) {
+						traces.advertising.error?.(
+							`[ADVERTISE] RESERVE MATCH FAILED: ${goodType} - ${(e as Error).message}`,
+							{ advertiser: (advertiser as { name?: unknown }).name, error: e }
+						)
+						throw e
+					}
+				}
 			}
 
 			const advertiserIsGeneralStorage = this.generalStorages.includes(
@@ -215,9 +271,11 @@ export abstract class AdvertisementManager<TAdvertiser extends StorageBase> {
 						ad.advertisement === 'provide' ? '0-store' : ad.priority
 					)
 				} catch (e) {
-					traces.advertising.log?.(
-						`[ADVERTISE] GENERAL STORAGE FAILED: ${goodType} - ${(e as Error).message}`
+					traces.advertising.error?.(
+						`[ADVERTISE] GENERAL STORAGE FAILED: ${goodType} - ${(e as Error).message}`,
+						{ advertiser: (advertiser as { name?: unknown }).name, error: e }
 					)
+					throw e
 				}
 				continue
 			}

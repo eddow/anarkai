@@ -54,7 +54,7 @@ Gameplay streaming is owned by `ssh`:
 - route-level aggregate summary via `summarizeFreightLineRoute()`: status (`active`/`idle`/`complete`), status explanation text (human-readable sentence explaining why the line is idle/done/active), per-vehicle position/cargo/actionable flags, per-stop opportunity flags, aggregated downstream demand, aggregated retained cargo, aggregated surplus cargo, and actionable-stop count. Rendered as a "Route status" inspector section.
 - cross-settlement market price comparison via `compareSettlementPrices()`: cheapest source and best sink per good across all known settlement trade profiles. Rendered in the standalone `CommercialOverview` dockview widget.
 - accumulated trade transfer log: exported goods, imported goods, credited VP, spent VP, per tick. `getFreightLineTradeHistory()` returns entries most-recent-first. Rendered as "Recent transfers" (last 5) in line properties.
-- vehicle assignment: `HardListSearchPicker` filters compatible types (`wheelbarrow`, `pickup_truck`, `suv`) via `isLineFreightVehicleType()`; assign/unassign from the line inspector.
+- vehicle assignment: `AssignedLinksPicker` (assigned rows plus collapsed combo picker) filters compatible types (`wheelbarrow`, `pickup_truck`, `suv`) via `isLineFreightVehicleType()`; assign/unassign from the line inspector.
 - docked vehicle work is surfaced through cheap provider-side advertised jobs for inspectors, while
   character-scoped planner search stays in job claiming/ranking paths
 - in-transit reservations prevent double-loading by subtracting goods already committed to a

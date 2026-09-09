@@ -74,9 +74,7 @@
 		"underway": "En route",
 		"cargo": "Chargement",
 		"lineAssignment": {
-			"section": "Lignes assignées",
 			"assigned": "Lignes",
-			"add": "Ajouter une ligne",
 			"filter": "Filtrer les lignes...",
 			"emptyAssigned": "Aucune ligne assignée",
 			"emptyAvailable": "Aucune ligne de fret disponible",

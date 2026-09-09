@@ -1,7 +1,8 @@
 import { goods } from 'engine-rules'
 import { reactive, untracked, unwrap } from 'mutts'
 import { Commitment, type FailureReason } from 'ssh/commitment'
-import { assert } from 'ssh/dev/debug'
+import { traces } from 'ssh/dev/debug'
+
 import { traceProjection } from 'ssh/dev/trace'
 import { GameObject } from 'ssh/game/object'
 import type { GoodType } from 'ssh/types'
@@ -41,13 +42,13 @@ export class LooseGoods extends GameObject {
 		const oldList = this.goods.get(coord) || []
 		const target = unwrap(good)
 		const newList = oldList.filter((candidate) => unwrap(candidate) !== target)
-		assert(newList.length === oldList.length - 1, 'LooseGood not found')
+		traces.scriptEngine.assert?.(newList.length === oldList.length - 1, 'LooseGood not found')
 		if (newList.length) this.goods.set(coord, newList)
 		else this.goods.delete(coord)
 		good.removed = true
 	}
 	add(pos: Positioned, goodType: GoodType, options: LooseGoodAddOptions = {}) {
-		assert(
+		traces.scriptEngine.assert?.(
 			!('position' in options) ||
 				axialDistance(options.position!, toAxialCoord(pos)) < 0.5 + epsilon,
 			'`position` in options must be roughly the same as pos.position'
@@ -222,7 +223,7 @@ export class LooseGoods extends GameObject {
 				for (const good of goodsList as InternalLooseGood[]) {
 					const goodDef = goods[good.goodType]
 					if (!goodDef) {
-						console.error(
+						traces.scriptEngine.error?.(
 							`LooseGood update: Unknown good type '${good.goodType}'. Goods keys: ${Object.keys(goods).join(', ')}`
 						)
 						continue

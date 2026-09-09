@@ -21,7 +21,8 @@ import type { Storage } from 'ssh/storage'
 import { axial, Derived } from 'ssh/utils'
 import { publicRef, sameRef } from 'ssh/utils/identity'
 import { type Position, toAxialCoord, xyDistance } from 'ssh/utils/position'
-import { assert, profile, traces } from '../../dev/debug.ts'
+import { AssertionError, assert, profile, traces } from '../../dev/debug.ts'
+
 import { traceProjection } from '../../dev/trace.ts'
 import type { Character } from '../character'
 import {
@@ -109,14 +110,16 @@ export class Vehicle extends withInteractive(GameObject) {
 				// 2000 px/s is ~38 hex/s at tileSize=30 — far beyond any
 				// legitimate drive speed even with 2× clock jitter margin.
 				const maxAllowed = Math.max(1, 2000 * ds * 2)
-				assert(
-					moved <= maxAllowed + 1e-3,
-					`VehicleEntity.position: teleport — moved ${moved.toFixed(1)} px ` +
+				if (!(moved <= maxAllowed + 1e-3)) {
+					const message =
+						`VehicleEntity.position: teleport — moved ${moved.toFixed(1)} px ` +
 						`in ${ds.toFixed(4)} s (max ${maxAllowed.toFixed(1)} px) ` +
 						`from ${axial.key(axial.round(toAxialCoord(this._lastPositionBeforeSet)!))} ` +
 						`to ${axial.key(axial.round(toAxialCoord(value)!))} ` +
 						`(vehicle ${debugObjectId(this) ?? ''})`
-				)
+					assert(false, message)
+					throw new AssertionError(message)
+				}
 			}
 		}
 		if (value) {
@@ -206,7 +209,7 @@ export class Vehicle extends withInteractive(GameObject) {
 				(total, qty) => total + Math.max(0, qty ?? 0),
 				0
 			)
-			traces.vehicle.log?.('vehicleJob.dock.storageDrained', {
+			traces.vehicle(this).log?.('vehicleJob.dock.storageDrained', {
 				lineId: debugObjectId(current.line),
 				stopIndex: current.line.stops.indexOf(current.stop),
 				stockCount: currentStockCount,
@@ -275,7 +278,7 @@ export class Vehicle extends withInteractive(GameObject) {
 			`Vehicle ${debugObjectId(this) ?? ''}: cannot restore docked position without anchor tile`
 		)
 		this.position = { ...tile.position }
-		traces.vehicle.log?.('vehicleJob.dock.placement', {
+		traces.vehicle(this).log?.('vehicleJob.dock.placement', {
 			outcome: 'restore-position',
 			reason,
 			anchorCoord: toAxialCoord(tile.position),
@@ -284,7 +287,7 @@ export class Vehicle extends withInteractive(GameObject) {
 
 	private traceDockPlacement(outcome: string): void {
 		const tile = this.dockTile
-		traces.vehicle.log?.('vehicleJob.dock.placement', {
+		traces.vehicle(this).log?.('vehicleJob.dock.placement', {
 			outcome,
 			anchorCoord: tile ? toAxialCoord(tile.position) : undefined,
 			hasWorldPosition: !!this.position,

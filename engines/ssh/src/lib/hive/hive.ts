@@ -55,6 +55,7 @@ import {
 import { AxialKeyMap } from 'ssh/utils/mem'
 import { toAxialCoord } from 'ssh/utils/position'
 import { assert, traces } from '../dev/debug.ts'
+
 import type { SerializedConveyMovement } from './convey-serialize'
 import { createMovementRef, type MovementRef, movementRefId } from './movement-ref'
 import {
@@ -900,12 +901,21 @@ export class Hive extends AdvertisementManager<FreightMovementParty> implements 
 	private assertLogisticsPathShape(path: readonly AxialCoord[], context: string) {
 		assert(path.length >= 1, `${context}: convey path must be non-empty`)
 		const last = path[path.length - 1]!
-		assert(isTileCoord(last), `${context}: convey path must end on the demander tile`)
+		assert(
+			isTileCoord(last),
+			`${context}: convey path must end on the demander tile`
+		)
 		if (path.length === 1) {
-			assert(isTileCoord(path[0]!), `${context}: terminal-only remainder must be a tile`)
+			assert(
+				isTileCoord(path[0]!),
+				`${context}: terminal-only remainder must be a tile`
+			)
 			return
 		}
-		assert(!isTileCoord(path[0]!), `${context}: multi-hop convey path must begin on a border hop`)
+		assert(
+			!isTileCoord(path[0]!),
+			`${context}: multi-hop convey path must begin on a border hop`
+		)
 		for (let i = 0; i < path.length - 1; i++) {
 			assert(
 				!(isTileCoord(path[i]!) && isTileCoord(path[i + 1]!)),
@@ -1410,10 +1420,14 @@ export class Hive extends AdvertisementManager<FreightMovementParty> implements 
 		if (previousSource && previousSource !== sourceCommitment && commitmentValid(previousSource)) {
 			try {
 				previousSource.fulfill()
-			} catch {
+			} catch (error) {
+				// The previous source may already be terminal; cancel is the fallback release.
+				traces.allocations.warn?.(`[hive] rebind: previous source fulfill failed (${label})`, error)
 				try {
 					previousSource.cancel(`${label}.old-source-cancel`)
-				} catch {}
+				} catch (cancelError) {
+					traces.allocations.warn?.(`[hive] rebind: previous source cancel failed (${label})`, cancelError)
+				}
 			}
 		}
 		return true
@@ -2139,7 +2153,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> implements 
 		if (isTerminalState(canonical._state)) return false
 		const failure = this.validateMovementInvariant(canonical, options)
 		if (!failure) return true
-		traces.convey.log?.(
+		traces.convey({ character: canonical.claimedBy, alveolus: canonical.provider }).log?.(
 			`[QUEUE-DISCARD] ${canonical.goodType} failure=${failure} from=${axial.key(canonical.from)} pathLen=${canonical.path.length} state=${canonical._state}`
 		)
 		if (this.handleStructuralMovementTeardown(canonical, failure)) return false
@@ -2184,7 +2198,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> implements 
 			requireTracked: true,
 		})
 		if (!failure) return true
-		traces.convey.warn?.(
+		traces.convey({ character: canonical.claimedBy, alveolus: canonical.provider }).warn?.(
 			`${label}: skipped ${canonical.goodType} ref#${movementRefId(canonical.ref)}`,
 			{
 				failure,
@@ -2492,7 +2506,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> implements 
 			hive.noteMovementLifecycle(this, `movement.hop.after:${axial.key(nextCoord)}`)
 			hive.invalidateConveyPlanning('movement.hop')
 			hive.invalidateAdvertisements([this.provider, this.demander], 'movement.lifecycle')
-			traces.convey.log?.(
+			traces.convey({ character: this.claimedBy, alveolus: this.provider }).log?.(
 				`[HOP] ${this.goodType} ${this.provider.name} -> ${this.demander.name} to ${nextCoord.q},${nextCoord.r} (path left: ${this.path.length})`
 			)
 		}
@@ -2691,14 +2705,14 @@ export class Hive extends AdvertisementManager<FreightMovementParty> implements 
 			this._state = transitionMovement(this._state, MovementState.completed)
 			hive.activeMovements.delete(this)
 			hive.invalidateConveyPlanning('movement.finish')
-			traces.convey.log?.(
+			traces.convey({ character: this.claimedBy, alveolus: this.provider }).log?.(
 				`[FINISH] ${this.goodType} ${this.provider.name} -> ${this.demander.name}`
 			)
 		}
 
 		movement.abort = function (this: TrackedMovement) {
 			this._state = transitionMovement(this._state, MovementState.aborted)
-			traces.convey.log?.(
+			traces.convey({ character: this.claimedBy, alveolus: this.provider }).log?.(
 				`[ABORT] ${this.goodType} ${this.provider.name} -> ${this.demander.name} from=${axial.key(this.from)}`
 			)
 			const hive = this.provider.hive
@@ -2779,7 +2793,13 @@ export class Hive extends AdvertisementManager<FreightMovementParty> implements 
 			: this.board.getTile(snapshot.currentCoord)!
 		try {
 			sourceStorage?.removeGood(snapshot.goodType, 1)
-		} catch {}
+		} catch (error) {
+			// Reconstruction is best-effort: the good still becomes free on the tile below.
+			traces.advertising.warn?.(
+				'[hive] reconstruct: failed to remove good from cancelled movement source',
+				error
+			)
+		}
 		this.board.looseGoods.add(tile, snapshot.goodType)
 		traces.advertising.log?.('[RECONSTRUCT] Cancelled movement as free good', {
 			goodType: snapshot.goodType,
@@ -2795,10 +2815,14 @@ export class Hive extends AdvertisementManager<FreightMovementParty> implements 
 		snapshot.originHive.forgetMovementTracking(movement)
 		try {
 			movement.allocations?.source?.cancel('reconstruction.source')
-		} catch {}
+		} catch (error) {
+			traces.advertising.warn?.('[hive] reconstruct: source allocation cancel failed', error)
+		}
 		try {
 			movement.allocations?.target?.cancel('reconstruction.target')
-		} catch {}
+		} catch (error) {
+			traces.advertising.warn?.('[hive] reconstruct: target allocation cancel failed', error)
+		}
 	}
 
 	private resolveProviderForSnapshot(
@@ -2927,21 +2951,28 @@ export class Hive extends AdvertisementManager<FreightMovementParty> implements 
 		if (sourceValid) {
 			try {
 				sourceToken.fulfill()
-			} catch {
+			} catch (error) {
+				traces.allocations.warn?.('[hive] offload: source fulfill failed, cancelling instead', error)
 				try {
 					sourceToken.cancel('offload.source')
-				} catch {}
+				} catch (cancelError) {
+					traces.allocations.warn?.('[hive] offload: source cancel failed', cancelError)
+				}
 			}
 		} else if (borderStorage) {
 			try {
 				borderStorage.removeGood(mg.goodType, 1)
-			} catch {}
+			} catch (error) {
+				traces.allocations.warn?.('[hive] offload: border storage removeGood failed', error)
+			}
 		}
 
 		if (targetValid) {
 			try {
 				targetToken.cancel('offload.target')
-			} catch {}
+			} catch (error) {
+				traces.allocations.warn?.('[hive] offload: target cancel failed', error)
+			}
 		}
 
 		const tile = this.preferredBorderOffloadTile(mg, coord)
@@ -2981,10 +3012,14 @@ export class Hive extends AdvertisementManager<FreightMovementParty> implements 
 		delete mg.claimedAtMs
 		try {
 			mg.allocations?.source?.cancel('silent-discard.source')
-		} catch {}
+		} catch (error) {
+			traces.allocations.warn?.('[hive] discard: source allocation cancel failed', error)
+		}
 		try {
 			mg.allocations?.target?.cancel('silent-discard.target')
-		} catch {}
+		} catch (error) {
+			traces.allocations.warn?.('[hive] discard: target allocation cancel failed', error)
+		}
 	}
 
 	private shouldDelayBrokenMovementDiscard(
@@ -3004,7 +3039,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> implements 
 		if (isTerminalState(mg._state)) return
 		this.activeMovements.delete(mg)
 		mg._state = transitionMovement(mg._state, MovementState.aborted)
-		traces.convey.log?.(
+		traces.convey({ character: mg.claimedBy, alveolus: mg.provider }).log?.(
 			`[DISCARD] ${mg.goodType} ref#${movementRefId(mg.ref)} state=${mg._state} from=${axial.key(mg.from)} pathLen=${mg.path.length}`
 		)
 		const trackedCoord = this.trackedMovementCoord(mg) ?? mg.from
@@ -3044,10 +3079,14 @@ export class Hive extends AdvertisementManager<FreightMovementParty> implements 
 		delete mg.claimedAtMs
 		try {
 			mg.allocations?.source?.cancel('discard.source')
-		} catch {}
+		} catch (error) {
+			traces.allocations.warn?.('[hive] discard: source allocation cancel failed', error)
+		}
 		try {
 			mg.allocations?.target?.cancel('discard.target')
-		} catch {}
+		} catch (error) {
+			traces.allocations.warn?.('[hive] discard: target allocation cancel failed', error)
+		}
 		this.invalidateConveyPlanning('movement.discard')
 		this.invalidateAdvertisements([mg.provider, mg.demander], 'movement.lifecycle')
 		this.wakeWanderingWorkersNear(mg.provider, mg.demander)
@@ -3520,7 +3559,7 @@ export class Hive extends AdvertisementManager<FreightMovementParty> implements 
 			requireTargetValid: true,
 		})
 		this.wakeWanderingWorkersNear(provider, demander)
-		traces.convey.log?.(
+		traces.convey({ alveolus: provider }).log?.(
 			`[CREATE] ${goodType} ${provider.name} -> ${demander.name} pathLen=${movingGood.path.length}`,
 			{
 				goodType,
@@ -3624,14 +3663,21 @@ export class Hive extends AdvertisementManager<FreightMovementParty> implements 
 				onCreated?.(storage)
 				traces.advertising.log?.(`[SELECT] DEFERRED SUCCESS: ${goodType} movement created`)
 			} catch (e) {
-				// Ignore allocation errors that occur if resources are no longer available
-				// The system will retry naturally on next advertisement if needed
+				// A deferred movement that fails allocation races (goods already taken)
+				// is retried naturally on the next advertisement — but only for
+				// allocation races. Anything else is a real bug: record at error
+				// level (test diagnostics fail on it unless allowed) and rethrow so
+				// the post-step flush surfaces instead of swallowing.
 				const error = e as Error
 				if (error.name === 'AllocationError') {
 					traces.advertising.log?.(`[SELECT] ALLOCATION ERROR: ${goodType} - ${error.message}`)
 				} else {
-					traces.advertising.log?.(`[SELECT] ERROR: ${goodType} - ${error.message}`)
-					console.error(e)
+					traces.advertising.error?.(`[SELECT] ERROR: ${goodType} - ${error.message}`, {
+						provider: alveolus.name,
+						target: storage.name,
+						error,
+					})
+					throw error
 				}
 			} finally {
 				releasePendingMovementIntent()
@@ -3717,7 +3763,16 @@ export class Hive extends AdvertisementManager<FreightMovementParty> implements 
 				targetCommitment.cancel('restore.target-failed')
 				return undefined
 			}
-		} catch {
+		} catch (restoreError) {
+			// Save restore must not silently drop in-flight goods: the error is
+			// recorded on the trace (test diagnostics fail on it unless allowed)
+			// before the commitments are released and the row skipped.
+			traces.advertising.error?.('[RESTORE] movement allocation failed', {
+				goodType: row.goodType,
+				provider: provider.name,
+				demander: demander.name,
+				error: restoreError instanceof Error ? restoreError.message : String(restoreError),
+			})
 			sourceCommitment.cancel('restore.exception')
 			targetCommitment.cancel('restore.exception')
 			return undefined
@@ -3807,10 +3862,15 @@ export class Hive extends AdvertisementManager<FreightMovementParty> implements 
 			)
 			try {
 				movingGood.allocations?.source?.cancel('destroy.source')
-			} catch {}
+			} catch (error) {
+				// Teardown is best-effort but stays visible at warn level.
+				traces.allocations.warn?.('[hive] destroy: source allocation cancel failed', error)
+			}
 			try {
 				movingGood.allocations?.target?.cancel('destroy.target')
-			} catch {}
+			} catch (error) {
+				traces.allocations.warn?.('[hive] destroy: target allocation cancel failed', error)
+			}
 		}
 		this.movingGoods.clear()
 		this.activeMovements.clear()

@@ -4,7 +4,6 @@ import {
 	assertDrivingVehicleSeam,
 	assertVehicleOperationConsistency,
 	traceVehicleStockWithoutService,
-	vehicleTraceAssert,
 } from 'ssh/freight/vehicle-invariants'
 import {
 	disembarkOperatorLeavingDockedVehicleInService,
@@ -24,10 +23,10 @@ import { type AxialCoord, axial } from 'ssh/utils'
 import { sameRef } from 'ssh/utils/identity'
 import { positionRoughlyEquals, toAxialCoord } from 'ssh/utils/position'
 import { assert, traces } from '../../dev/debug.ts'
+
 import { subject } from '../scripts'
-import { DurationStep, MoveToStep } from '../steps'
+import { DurationStep } from '../steps'
 import type { WorkPlan } from '.'
-import { characterWalkDuration } from './walk'
 
 type VehicleHopRunEndedReason = 'zone-complete-ended-run' | 'anchor-freight-drained-ended-run'
 
@@ -75,7 +74,7 @@ function refreshAnchorHopPathToLiveDock(
 	if (!('anchor' in stop)) return undefined
 	if (vehicleCanDockAtCurrentPosition(vehicle)) return undefined
 	if (jobPlan.line !== line || jobPlan.stop !== stop) {
-		traces.vehicle.warn?.('vehicleHopPrepare: stale dock tail against drifted live stop', {
+		traces.vehicle(vehicle).warn?.('vehicleHopPrepare: stale dock tail against drifted live stop', {
 			characterUid: debugObjectId(character) ?? '',
 			plannedLineRef: debugObjectId(jobPlan.line),
 			plannedStopId: jobPlan.stopIndex,
@@ -96,7 +95,7 @@ function refreshAnchorHopPathToLiveDock(
 		) ?? []
 	if (path.length === 0) {
 		;(jobPlan as WorkPlan & { vehicleHopReplanRequired?: boolean }).vehicleHopReplanRequired = true
-		traces.vehicle.warn?.('vehicleHopPrepare: no path to live dock anchor', {
+		traces.vehicle(vehicle).warn?.('vehicleHopPrepare: no path to live dock anchor', {
 			characterUid: debugObjectId(character) ?? '',
 			lineId: debugObjectId(line),
 			stopIndex: vehicle.service.line.stops.indexOf(stop),
@@ -106,7 +105,7 @@ function refreshAnchorHopPathToLiveDock(
 		return undefined
 	}
 	jobPlan.path = path
-	traces.vehicle.log?.('vehicleHopPrepare: refreshed live dock path', {
+	traces.vehicle(vehicle).log?.('vehicleHopPrepare: refreshed live dock path', {
 		characterUid: debugObjectId(character) ?? '',
 		lineId: debugObjectId(line),
 		stopIndex: vehicle.service.line.stops.indexOf(stop),
@@ -120,66 +119,6 @@ function refreshAnchorHopPathToLiveDock(
 	return path
 }
 
-function moveTowardLiveDockStep(
-	character: Character,
-	vehicle: Vehicle,
-	jobPlan: WorkPlan
-): MoveToStep | undefined {
-	const path = refreshAnchorHopPathToLiveDock(character, vehicle, jobPlan)
-	const from = axial.round(toAxialCoord(vehicle.effectivePosition)!)
-	const next = path?.find((step) => axial.key(axial.round(step)) !== axial.key(from))
-	if (!next) return undefined
-	const pathLen = path?.length ?? 0
-	const duration = characterWalkDuration(character, from, next)
-	if (!Number.isFinite(duration) || duration <= 0) return undefined
-	const dockCoord = vehicle.dockTile
-		? axial.round(toAxialCoord(vehicle.dockTile.position)!)
-		: undefined
-	const distanceToDock = dockCoord ? axial.distance(from, dockCoord) : Number.POSITIVE_INFINITY
-	const isNearDock = distanceToDock <= 1
-	const plannedLineRef =
-		jobPlan.type === 'work' && jobPlan.job === 'vehicleHop'
-			? debugObjectId(jobPlan.line)
-			: undefined
-	const plannedStopId =
-		jobPlan.type === 'work' && jobPlan.job === 'vehicleHop' ? jobPlan.stopIndex : undefined
-	const logMethod = isNearDock ? traces.vehicle.warn : traces.vehicle.log
-	const message = isNearDock
-		? 'vehicleHopDockStep: recovering stale dock tail by moving toward dock'
-		: 'vehicleHopDockStep: continuing approach toward dock'
-	logMethod?.(message, {
-		characterUid: debugObjectId(character) ?? '',
-		lineId: isVehicleLineService(vehicle.service) ? vehicle.service.line : undefined,
-		stopIndex: isVehicleLineService(vehicle.service)
-			? vehicle.service.line.stops.indexOf(vehicle.service.stop)
-			: undefined,
-		plannedLineRef,
-		plannedStopId,
-		from,
-		next,
-		pathLen,
-		distanceToDock,
-		vehicleCoordRaw: vehicle.position ? toAxialCoord(vehicle.position) : undefined,
-		dockCoord: vehicle.dockTile ? toAxialCoord(vehicle.dockTile.position) : undefined,
-		canDockNow: vehicleCanDockAtCurrentPosition(vehicle),
-	})
-	return new MoveToStep(
-		duration,
-		character,
-		next,
-		'walk',
-		'vehicleHop.recoverDockPath'
-	).onFulfilled(() => {
-		traces.vehicle.log?.('vehicleHopDockStep: recovered stale dock tail movement completed', {
-			characterUid: debugObjectId(character) ?? '',
-			from,
-			next,
-			vehicleCoord: vehicle.position ? axial.round(toAxialCoord(vehicle.position)!) : undefined,
-			dockable: vehicleCanDockAtCurrentPosition(vehicle),
-		})
-	})
-}
-
 function markVehicleHopRunEndedBeforeDock(
 	jobPlan: WorkPlan,
 	reason: VehicleHopRunEndedReason,
@@ -188,10 +127,13 @@ function markVehicleHopRunEndedBeforeDock(
 ): void {
 	if (jobPlan.type !== 'work' || jobPlan.job !== 'vehicleHop') return
 	jobPlan.vehicleHopRunEnded = true
-	traces.vehicle.log?.('vehicleHop: service ended during prepare; skipping travel and dock', {
-		reason,
-		characterUid: debugObjectId(character) ?? '',
-	})
+	traces.vehicle(_vehicle).log?.(
+		'vehicleHop: service ended during prepare; skipping travel and dock',
+		{
+			reason,
+			characterUid: debugObjectId(character) ?? '',
+		}
+	)
 }
 
 /**
@@ -239,7 +181,7 @@ class VehicleFunctions {
 		assert(vehicle, 'vehicleApproach: vehicle missing')
 		if (vehicle.operator && !sameRef(vehicle.operator, character)) {
 			jobPlan.vehicleApproachAborted = true
-			traces.vehicle.warn?.('vehicleApproach: stale plan reached already-operated vehicle', {
+			traces.vehicle(vehicle).warn?.('vehicleApproach: stale plan reached already-operated vehicle', {
 				characterUid: debugObjectId(character) ?? '',
 				operatorUid: debugObjectId(vehicle.operator) ?? '',
 			})
@@ -258,7 +200,7 @@ class VehicleFunctions {
 		if (!character.driving) {
 			const ct = (character as any)._tile
 			const vp = vehicle.effectivePosition
-			traces.vehicle.log?.('vehicleJob.approach.preOnboard', {
+			traces.vehicle(vehicle).log?.('vehicleJob.approach.preOnboard', {
 				characterUid: debugObjectId(character) ?? '',
 				tileKey: ct ? axial.key(axial.round(toAxialCoord(ct.position)!)) : undefined,
 				vehicleKey: axial.key(axial.round(toAxialCoord(vp)!)),
@@ -267,7 +209,7 @@ class VehicleFunctions {
 			character.operates = vehicle
 			character.onboard()
 		}
-		traces.vehicle.log?.('vehicleJob.approach.onboard', {
+		traces.vehicle(vehicle).log?.('vehicleJob.approach.onboard', {
 			characterUid: debugObjectId(character) ?? '',
 		})
 		assertDrivingVehicleSeam(character)
@@ -301,7 +243,7 @@ class VehicleFunctions {
 		}
 		if (!svc.looseGood.available || svc.looseGood.isRemoved) {
 			jobPlan.vehicleApproachAborted = true
-			traces.vehicle.log?.('vehicleOffload pickup: stale loose good before binding pickup plan', {
+			traces.vehicle(vehicle).log?.('vehicleOffload pickup: stale loose good before binding pickup plan', {
 				characterUid: debugObjectId(character) ?? '',
 				goodType: svc.looseGood.goodType,
 				available: svc.looseGood.available,
@@ -323,7 +265,7 @@ class VehicleFunctions {
 			)
 		} catch (error) {
 			jobPlan.vehicleApproachAborted = true
-			traces.vehicle.log?.('vehicleOffload pickup: stale loose good while binding pickup plan', {
+			traces.vehicle(vehicle).log?.('vehicleOffload pickup: stale loose good while binding pickup plan', {
 				characterUid: debugObjectId(character) ?? '',
 				goodType: svc.looseGood.goodType,
 				error: error instanceof Error ? error.message : String(error),
@@ -363,7 +305,7 @@ class VehicleFunctions {
 		)
 		assertVehicleOperationConsistency(vehicle, character)
 		assert(vehicle.service, 'vehicleBeginService: missing service')
-		traces.vehicle.log?.('vehicleJob.beginService', {
+		traces.vehicle(vehicle).log?.('vehicleJob.beginService', {
 			characterUid: debugObjectId(character) ?? '',
 			lineId: debugObjectId(jobPlan.line),
 			stopIndex: jobPlan.stopIndex,
@@ -395,7 +337,7 @@ class VehicleFunctions {
 		assert(sameRef(character.operates, vehicle), 'vehicleHop: wrong operated vehicle')
 		assert(character.driving, 'vehicleHop: not driving')
 		jobPlan.vehicleHopStopHandled = false
-		vehicleTraceAssert(
+		assert(
 			isVehicleLineService(vehicle.service),
 			'vehicleHop requires active line service (run vehicleBeginService first)'
 		)
@@ -432,7 +374,8 @@ class VehicleFunctions {
 	 * zone target itself, not through a bay endpoint.
 	 *
 	 * When line service ended during {@link VehicleFunctions.vehicleHopPrepare}, the NPC script must
-	 * not reach here; if it does (e.g. service cleared mid-walk), warn and no-op instead of asserting.
+	 * not reach here; if it does (e.g. service cleared mid-walk), it is a bug and asserts so the
+	 * failure surfaces instead of being silently recovered.
 	 */
 	@contract('WorkPlan')
 	vehicleHopDockStep(jobPlan: WorkPlan) {
@@ -441,16 +384,20 @@ class VehicleFunctions {
 		const hopPlan = jobPlan as WorkPlan & { vehicleHopReplanRequired?: boolean }
 		const wasReplanRequired = hopPlan.vehicleHopReplanRequired
 		hopPlan.vehicleHopReplanRequired = false
-		traces.vehicle.log?.('vehicleHopDockStep: entry', {
+		const vehicle = jobPlan.vehicle
+		assert(vehicle, 'vehicleHopDockStep: vehicle missing')
+		const sink = traces.vehicle(vehicle)
+		sink.log?.('vehicleHopDockStep: entry', {
 			characterUid: debugObjectId(character) ?? '',
 			dockEnter: (jobPlan as any).dockEnter,
 			wasReplanRequired,
 			vehicleHopStopHandled: (jobPlan as any).vehicleHopStopHandled,
 		})
-		const vehicle = jobPlan.vehicle
-		assert(vehicle, 'vehicleHopDockStep: vehicle missing')
+		// Legitimate terminal: `vehicleHopPrepare` ended the run and the script
+		// pauses before dock. Direct calls with this flag (e.g. tests) no-op.
+		if ((jobPlan as WorkPlan & { vehicleHopRunEnded?: boolean }).vehicleHopRunEnded) return
 		if (!isVehicleLineService(vehicle.service)) {
-			traces.vehicle.warn?.('vehicleHopDockStep: no active line service (unexpected tail)', {
+			sink.warn?.('vehicleHopDockStep: no active line service (unexpected tail)', {
 				characterUid: debugObjectId(character) ?? '',
 				vehicleHopRunEnded: jobPlan.vehicleHopRunEnded,
 			})
@@ -463,7 +410,12 @@ class VehicleFunctions {
 			vehicle.service.line !== jobPlan.line ||
 			vehicle.service.line.stops.indexOf(stop) !== jobPlan.stopIndex
 		) {
-			traces.vehicle.warn?.(
+			// The plan's line/stop must match the live service at dock time. A drift
+			// here means the script is running a stale plan against a newer stop —
+			// docking would attach bay state to the wrong stop, so skip dock and let
+			// the planner re-issue. Surfaced as warn (test diagnostics fail on it
+			// unless explicitly allowed), not a silent no-op.
+			sink.warn?.(
 				'vehicleHopDockStep: live service drifted from planned stop; skipping dock',
 				{
 					characterUid: debugObjectId(character) ?? '',
@@ -478,42 +430,14 @@ class VehicleFunctions {
 		if ('anchor' in stop) {
 			jobPlan.vehicleHopAnchorDockDisembarked = true
 			jobPlan.vehicleHopStopHandled = true
-			if (!vehicleCanDockAtCurrentPosition(vehicle)) {
-				traces.vehicle.log?.('vehicleHopDockStep: cannot dock, attempting recovery', {
-					characterUid: debugObjectId(character) ?? '',
-					lineId: debugObjectId(vehicle.service.line),
-					stopIndex: vehicle.service.line.stops.indexOf(stop),
-					vehicleCoord: vehicle.position ? toAxialCoord(vehicle.position) : undefined,
-					dockCoord: vehicle.dockTile ? toAxialCoord(vehicle.dockTile.position) : undefined,
-				})
-				const recoveryStep = moveTowardLiveDockStep(character, vehicle, jobPlan)
-				if (recoveryStep) {
-					traces.vehicle.log?.('vehicleHopDockStep: returning recovery step', {
-						characterUid: debugObjectId(character) ?? '',
-						stepType: 'MoveToStep',
-					})
-					return recoveryStep
-				}
-				;(jobPlan as WorkPlan & { vehicleHopReplanRequired?: boolean }).vehicleHopReplanRequired =
-					true
-				jobPlan.vehicleHopAnchorDockDisembarked = false
-				jobPlan.vehicleHopStopHandled = false
-				traces.vehicle.warn?.('vehicleHopDockStep: vehicle not at dock; replan required', {
-					characterUid: debugObjectId(character) ?? '',
-					lineId: debugObjectId(vehicle.service.line),
-					stopIndex: vehicle.service.line.stops.indexOf(stop),
-					vehicleCoord: vehicle.position ? toAxialCoord(vehicle.position) : undefined,
-					dockCoord: vehicle.dockTile ? toAxialCoord(vehicle.dockTile.position) : undefined,
-				})
-				traces.vehicle.log?.('vehicleHopDockStep: returning undefined for replan', {
-					characterUid: debugObjectId(character) ?? '',
-					vehicleHopReplanRequired: true,
-				})
-				return
-			}
+			// No recovery here. `driveJobPath`/`walk.until` must have driven the vehicle
+			// to the dock service border before this step. If it didn't, `vehicle.dock()`
+			// asserts ("dock requires vehicle to be on the anchor tile or its border") and
+			// that exception surfaces instead of being silently "recovered" into a
+			// left/right oscillation.
 			vehicle.dock()
 			assertDockedSemantics(vehicle)
-			traces.vehicle.log?.('vehicleJob.hop.dock', {
+			sink.log?.('vehicleJob.hop.dock', {
 				characterUid: debugObjectId(character) ?? '',
 				lineId: debugObjectId(vehicle.service?.line) ?? '',
 				stopIndex: isVehicleLineService(vehicle.service)
@@ -529,7 +453,7 @@ class VehicleFunctions {
 				disembarkOperatorLeavingDockedVehicleInService(character, vehicle)
 				assertVehicleOperationConsistency(vehicle, character)
 			})
-			traces.vehicle.log?.('vehicleHopDockStep: returning dock DurationStep', {
+			sink.log?.('vehicleHopDockStep: returning dock DurationStep', {
 				characterUid: debugObjectId(character) ?? '',
 			})
 			return dockStep
@@ -545,7 +469,7 @@ class VehicleFunctions {
 					character.disengageVehicleKeepingService()
 				}
 			}
-			traces.vehicle.log?.('vehicleJob.hop.zoneReach', {
+			sink.log?.('vehicleJob.hop.zoneReach', {
 				characterUid: debugObjectId(character) ?? '',
 				lineId: debugObjectId(vehicle.service?.line) ?? '',
 				stopIndex: isVehicleLineService(vehicle.service)
@@ -559,7 +483,7 @@ class VehicleFunctions {
 			'work',
 			'vehicleHop.zoneReach'
 		)
-		traces.vehicle.log?.('vehicleHopDockStep: returning zoneReach DurationStep', {
+		sink.log?.('vehicleHopDockStep: returning zoneReach DurationStep', {
 			characterUid: debugObjectId(character) ?? '',
 		})
 		return zoneReachStep
@@ -628,7 +552,7 @@ class VehicleFunctions {
 		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'vehicleDisengageKeepingService: vehicle missing')
 		if (!sameRef(character.operates, vehicle)) {
-			traces.vehicle.log?.('vehicleDisengageKeepingService: already released', {
+			traces.vehicle(vehicle).log?.('vehicleDisengageKeepingService: already released', {
 				characterUid: debugObjectId(character) ?? '',
 				operatesUid: debugObjectId(character.operates),
 				serviceKind: isVehicleLineService(vehicle.service)
@@ -640,7 +564,7 @@ class VehicleFunctions {
 			return
 		}
 		if (!isVehicleLineService(vehicle.service)) {
-			traces.vehicle.log?.('vehicleDisengageKeepingService: service already ended', {
+			traces.vehicle(vehicle).log?.('vehicleDisengageKeepingService: service already ended', {
 				characterUid: debugObjectId(character) ?? '',
 			})
 			return
@@ -666,7 +590,7 @@ class VehicleFunctions {
 				'vehicleLoadTransferStep: wrong operated vehicle'
 			)
 			assert(jobPlan.offloadPickupPlan, 'vehicleLoadTransferStep: missing offload pickup plan')
-			traces.vehicle.log?.('vehicleJob.load', {
+			traces.vehicle(vehicle).log?.('vehicleJob.load', {
 				characterUid: debugObjectId(character) ?? '',
 				goodType: jobPlan.offloadPickupPlan.goodType,
 			})
@@ -746,9 +670,14 @@ class VehicleFunctions {
 		const character = this[subject] as Character
 		if (jobPlan.type !== 'work' || jobPlan.job !== 'loadOntoVehicle') return
 		const vehicle = jobPlan.vehicle
-		assert(vehicle, 'loadOntoVehicle: vehicle missing')
+		if (!vehicle) {
+			traces.vehicle(undefined).error?.('loadOntoVehicle: vehicle missing', {
+				characterUid: debugObjectId(character) ?? '',
+			})
+			throw new Error('loadOntoVehicle: vehicle missing')
+		}
 		assert(sameRef(character.operates, vehicle), 'loadOntoVehicle: wrong operated vehicle')
-		traces.vehicle.log?.('vehicleJob.load', {
+		traces.vehicle(vehicle).log?.('vehicleJob.load', {
 			characterUid: debugObjectId(character) ?? '',
 			goodType: jobPlan.goodType,
 		})
@@ -780,7 +709,7 @@ class VehicleFunctions {
 		assert(vehicle, 'unloadFromVehicle: vehicle missing')
 		assert(sameRef(character.operates, vehicle), 'unloadFromVehicle: wrong operated vehicle')
 		assert(character.driving, 'unloadFromVehicle: not driving')
-		traces.vehicle.log?.('vehicleJob.unload', {
+		traces.vehicle(vehicle).log?.('vehicleJob.unload', {
 			characterUid: debugObjectId(character) ?? '',
 			goodType: jobPlan.goodType,
 			quantity: jobPlan.quantity,
@@ -808,7 +737,7 @@ class VehicleFunctions {
 		const vehicle = jobPlan.vehicle
 		assert(vehicle, 'provideFromVehicle: vehicle missing')
 		assert(sameRef(character.operates, vehicle), 'provideFromVehicle: wrong operated vehicle')
-		traces.vehicle.log?.('vehicleJob.provide', {
+		traces.vehicle(vehicle).log?.('vehicleJob.provide', {
 			characterUid: debugObjectId(character) ?? '',
 			goodType: jobPlan.goodType,
 			quantity: jobPlan.quantity,
@@ -866,7 +795,7 @@ class VehicleFunctions {
 			svc.kind === jobPlan.maintenanceKind,
 			'completeVehicleMaintenanceService: live service kind drifted from job plan'
 		)
-		traces.vehicle.log?.('vehicleJob.maintenance.complete', {
+		traces.vehicle(vehicle).log?.('vehicleJob.maintenance.complete', {
 			characterUid: debugObjectId(character) ?? '',
 			maintenanceKind: svc.kind,
 		})
@@ -893,7 +822,7 @@ class VehicleFunctions {
 		if (!sameRef(character.operates, vehicle)) return
 		const svc = vehicle.service
 		if (!isVehicleMaintenanceService(svc)) return
-		traces.vehicle.warn?.('vehicleJob.maintenance.abandon', {
+		traces.vehicle(vehicle).warn?.('vehicleJob.maintenance.abandon', {
 			characterUid: debugObjectId(character) ?? '',
 			maintenanceKind: svc.kind,
 			targetCoord: svc.targetCoord,
@@ -918,7 +847,7 @@ class VehicleFunctions {
 			isVehicleMaintenanceService(svc) && svc.kind === 'park',
 			'endParkingService: vehicle.service must be a park maintenance run'
 		)
-		traces.vehicle.log?.('vehicleJob.park.end', {
+		traces.vehicle(vehicle).log?.('vehicleJob.park.end', {
 			characterUid: debugObjectId(character) ?? '',
 		})
 		this.completeVehicleMaintenanceService({

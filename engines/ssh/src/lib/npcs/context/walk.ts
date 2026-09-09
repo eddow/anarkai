@@ -80,6 +80,13 @@ class WalkFunctions {
 	 */
 	@contract()
 	enter() {
+		// A DRIVING character's position is the vehicle's position, which is already
+		// authoritative (set by `driveJobPath`/`walk.until` to the dock service border,
+		// or nudged toward it by `vehicleHopDockStep` recovery). Moving a driving character
+		// to `_tile` center here would yank the vehicle backward off the dock border and
+		// fight the dock approach — the "left/right/left/right" vibration. Only on-foot
+		// characters "enter" a tile center.
+		if (this[subject].driving) return
 		const tile = this[subject].tile
 		const toAxial = toAxialCoord(tile)
 		const fromAxial = toAxialCoord(this[subject])

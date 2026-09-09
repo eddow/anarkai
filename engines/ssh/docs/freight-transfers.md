@@ -129,7 +129,7 @@ second vehicle measuring the same site sees reduced need and avoids double-loadi
 - **Expiry (algorithm bug guard)**: each reservation carries `expiresAtTick = now + 2 × route cycle ticks`.
   The game tick loop scans all construction sites every 2 seconds for expired reservations. An
   expired reservation means the vehicle never delivered what it reserved — an algorithm bug — and
-  **logs a warning trace** (`traces.vehicle.warn('inTransit.stale', ...)`). It does not silently
+  **logs a warning trace** (`traces.vehicle(vehicle).warn('inTransit.stale', ...)`). It does not silently
   eat the error.
 
 ### Surplus offload as safety net

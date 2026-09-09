@@ -949,7 +949,7 @@ export function explainFreightStopCommerce(args: {
 		...('trade' in stop ? { minBalanceAfterBuyVp: freightStopReserve(args.line, stop) } : {}),
 		blockReasons,
 	}
-	traces.vehicle.log?.('freightStop.servicePosition', {
+	traces.vehicle(args.vehicle ?? stop).log?.('freightStop.servicePosition', {
 		line: args.line,
 		stop,
 		stopIndex: args.stopIndex,

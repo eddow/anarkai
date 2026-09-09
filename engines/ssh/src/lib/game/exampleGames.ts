@@ -850,19 +850,19 @@ export const soviet = {
 				{
 					loadSelection: constructionGoodsSelection,
 					unloadSelection: constructionGoodsSelection,
+					// Radius zone centred on the bay anchor (gather route); radius 6
+					// reaches the Woodland forest.
+					zone: { kind: 'radius', center: [-9, -2], radius: 6 },
+				},
+				{
+					loadSelection: constructionGoodsSelection,
+					unloadSelection: constructionGoodsSelection,
 					anchor: {
 						kind: 'alveolus',
 						hiveName: 'Wood',
 						alveolusType: 'freight_bay',
 						coord: [-9, -2],
 					},
-				},
-				{
-					loadSelection: constructionGoodsSelection,
-					unloadSelection: constructionGoodsSelection,
-					// Radius zone centred on the bay anchor (gather route); radius 6
-					// reaches the Woodland forest.
-					zone: { kind: 'radius', center: [-9, -2], radius: 6 },
 				},
 			],
 		},
@@ -920,18 +920,18 @@ export const soviet = {
 				{
 					loadSelection: constructionGoodsSelection,
 					unloadSelection: constructionGoodsSelection,
+					// Radius zone centred on the bay anchor (gather route).
+					zone: { kind: 'radius', center: [-30, -2], radius: 6 },
+				},
+				{
+					loadSelection: constructionGoodsSelection,
+					unloadSelection: constructionGoodsSelection,
 					anchor: {
 						kind: 'alveolus',
 						hiveName: 'Wood II',
 						alveolusType: 'freight_bay',
 						coord: [-30, -2],
 					},
-				},
-				{
-					loadSelection: constructionGoodsSelection,
-					unloadSelection: constructionGoodsSelection,
-					// Radius zone centred on the bay anchor (gather route).
-					zone: { kind: 'radius', center: [-30, -2], radius: 6 },
 				},
 			],
 		},
@@ -999,6 +999,7 @@ export const soviet = {
 			vehicleType: 'wheelbarrow',
 			position: { q: -9, r: -2 },
 			servedLineIndices: [0],
+			//watched: true
 		},
 		{
 			name: 'soviet:wheelbarrow2',

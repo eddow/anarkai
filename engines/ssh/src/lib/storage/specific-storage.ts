@@ -3,6 +3,7 @@ import type { Commitment, FailureReason } from 'ssh/commitment'
 import type { Goods } from 'ssh/types/base'
 import { GoodType } from 'ssh/types/base'
 import { assert, traces } from '../dev/debug.ts'
+
 import type { RenderedGoodSlots } from '.'
 import {
 	type SpecificStorageSnapshot,

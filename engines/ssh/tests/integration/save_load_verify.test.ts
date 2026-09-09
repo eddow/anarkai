@@ -28,7 +28,11 @@ if (typeof navigator === 'undefined') {
 } else {
 	try {
 		;(global as any).navigator = { userAgent: 'node' }
-	} catch (_e) {}
+	} catch (error) {
+		// In a real browser `navigator` is a read-only getter; keep the real one
+		// rather than failing test setup.
+		console.warn('[test-setup] could not override navigator (read-only?); keeping real navigator', error)
+	}
 }
 if (typeof requestAnimationFrame === 'undefined') {
 	;(global as any).requestAnimationFrame = (cb: any) => setTimeout(cb, 16)
@@ -128,8 +132,9 @@ describe('Save/Load Determinism', () => {
 		for (const game of games) {
 			try {
 				game.destroy()
-			} catch {
+			} catch (error) {
 				// Destroy can throw if mutts is already broken; global `test-setup` `afterEach` runs `reset()` next.
+				console.warn('[save-load] game.destroy failed in afterEach (mutts already broken?)', error)
 			}
 		}
 		games.clear()

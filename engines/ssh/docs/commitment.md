@@ -72,7 +72,11 @@ Used as the return type for `allocate`/`reserve` after the Phase 3 migration. `u
 function assertSuccess(reason: FailureReason, label: string): void
 ```
 
-Throws if `reason` is a string. Used by every `allocate`/`reserve` call site — high enough severity because these are called from constructors and "must succeed" paths.
+Throws if `reason` is a string: records via `traces.commitments.assert`
+(which throws `AssertionError` when the channel's `assert` verb is enabled)
+and then throws a plain `Error` with the allocation context. Used by every
+`allocate`/`reserve` call site — high enough severity because these are called
+from constructors and "must succeed" paths.
 
 ## Subclasses
 

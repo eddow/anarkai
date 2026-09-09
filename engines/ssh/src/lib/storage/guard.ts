@@ -25,7 +25,10 @@ const registry: FinalizationRegistry<Held> | null =
 					}
 					console.error('Leaked allocation (not fulfilled/cancelled):', errorInfo)
 					traces.allocations.error?.('Leaked allocation detected:', errorInfo)
-				} catch {}
+			} catch {
+				// The FinalizationRegistry callback must never throw: an uncaught error here
+				// escapes the tick entirely. The leak was already logged above; nothing to do.
+			}
 			})
 		: null
 

@@ -3,6 +3,7 @@ import { inert, markRaw, reactive, unreactive, unwrap } from 'mutts'
 import { isTileCoord } from 'ssh/board/tile-coord'
 import type { ZoneDefinition } from 'ssh/board/zone'
 import { traces } from 'ssh/dev/debug'
+
 import { debugObjectId } from 'ssh/dev/debug-object-id'
 import { isVehicleFreightDock } from 'ssh/freight/vehicle-freight-dock'
 import type { Hive, MovementSelection, TrackedMovement } from 'ssh/hive/hive'
@@ -16,7 +17,6 @@ import type { GoodType, Job } from 'ssh/types/base'
 import { type AxialCoord, axial, Derived, tileSize } from 'ssh/utils'
 import type { ExchangePriority, GoodsRelations } from 'ssh/utils/advertisement'
 import { toAxialCoord, toWorldCoord } from 'ssh/utils/position'
-import { assert } from '../../dev/debug.ts'
 import { AlveolusGate } from '../border/alveolus-gate'
 import type { Tile } from '../tile'
 import { TileContent } from './content'
@@ -39,7 +39,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		value = normalize(value)
 		const current = normalize(this._assignedWorker)
 		if (value === current) return
-		assert(!value !== !this._assignedWorker, 'assigned worker mismatch')
+		traces.convey({ alveolus: this }).assert?.(!value !== !this._assignedWorker, 'assigned worker mismatch')
 		this._assignedWorker = value
 		this.hive?.invalidateConveyPlanning?.('alveolus.assigned-worker')
 	}
@@ -336,7 +336,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 	): Job | undefined {
 		if (assignedWorker && assignedWorker !== currentCharacter) {
 			if (this.hasConveyNearby) {
-				traces.convey.log?.(`[getJob] skip assigned-worker ${this.name}`, {
+				traces.convey({ alveolus: this, character: currentCharacter }).log?.(`[getJob] skip assigned-worker ${this.name}`, {
 					alveolus: this.name,
 					assignedWorker: assignedWorker,
 					character: currentCharacter,
@@ -346,7 +346,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		}
 		const carry = this.conveyJob()
 		if (carry) {
-			traces.convey.log?.(`[getJob] convey ${this.name}`, {
+			traces.convey({ alveolus: this, character: currentCharacter }).log?.(`[getJob] convey ${this.name}`, {
 				alveolus: this.name,
 				character: debugObjectId(currentCharacter),
 				urgency: carry.urgency,
@@ -358,7 +358,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		}
 		if (this.tile.isBurdened) {
 			if (this.hasConveyNearby) {
-				traces.convey.log?.(`[getJob] skip burdened ${this.name}`, {
+				traces.convey({ alveolus: this, character: currentCharacter }).log?.(`[getJob] skip burdened ${this.name}`, {
 					alveolus: this.name,
 					character: debugObjectId(currentCharacter),
 				})
@@ -367,7 +367,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		}
 		if (!this.working) {
 			if (this.hasConveyNearby) {
-				traces.convey.log?.(`[getJob] skip not-working ${this.name}`, {
+				traces.convey({ alveolus: this, character: currentCharacter }).log?.(`[getJob] skip not-working ${this.name}`, {
 					alveolus: this.name,
 					character: debugObjectId(currentCharacter),
 				})
@@ -380,7 +380,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 		if (provider) {
 			const job = provider(this).jobForCharacter(currentCharacter as any)
 			if (this.hasConveyNearby) {
-				traces.convey.log?.(`[getJob] ${job ? 'work' : 'none'} ${this.name}`, {
+				traces.convey({ alveolus: this, character: currentCharacter }).log?.(`[getJob] ${job ? 'work' : 'none'} ${this.name}`, {
 					alveolus: this.name,
 					character: debugObjectId(currentCharacter),
 					urgency: job?.urgency,
@@ -459,7 +459,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 			movement: TrackedMovement,
 			fromSnapshot: AxialCoord
 		): MovementSelection => {
-			traces.convey.log?.(
+			traces.convey({ alveolus: this }).log?.(
 				`[aGoodMovement] selected ${movement.goodType} ref#${movementRefId(movement.ref)} from=${axial.key(fromSnapshot)} next=${movement.path[0] ? axial.key(movement.path[0]) : 'none'}`,
 				{
 					alveolus: this.name,
@@ -495,7 +495,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 					if (canAdvance(mg)) {
 						return [selection]
 					} else {
-						traces.convey.log?.(
+						traces.convey({ alveolus: this }).log?.(
 							`[aGoodMovement] blocked ${mg.goodType} ref#${movementRefId(mg.ref)} from=${axial.key(from)} next=${mg.path[0] ? axial.key(mg.path[0]) : 'none'}`,
 							{
 								alveolus: this.name,
@@ -527,7 +527,7 @@ export abstract class Alveolus extends GcClassed<Ssh.AlveolusDefinition, typeof 
 				if (canAdvance(mg)) {
 					return [selection]
 				} else {
-					traces.convey.log?.(
+					traces.convey({ alveolus: this }).log?.(
 						`[aGoodMovement] blocked ${mg.goodType} ref#${movementRefId(mg.ref)} from=${axial.key(here)} next=${mg.path[0] ? axial.key(mg.path[0]) : 'none'}`,
 						{
 							alveolus: this.name,
