@@ -159,7 +159,7 @@
 			"missing_goods": "Marchandises manquantes"
 		},
 		"materials": "Matériaux",
-		"workProgress": "Travail : {applied}s / {total}s"
+		"workProgress": "Travail : {$applied}s / {$total}s"
 	},
 	"residential": {
 		"projectBasicDwelling": "Logement de base (construction)",

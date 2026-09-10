@@ -159,7 +159,7 @@
 			"missing_goods": "Missing goods"
 		},
 		"materials": "Materials",
-		"workProgress": "Work: {applied}s / {total}s"
+		"workProgress": "Work: {$applied}s / {$total}s"
 	},
 	"residential": {
 		"projectBasicDwelling": "Basic dwelling (construction)",

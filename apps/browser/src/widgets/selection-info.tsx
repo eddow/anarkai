@@ -12,6 +12,7 @@ import {
 	resolveHiveFromAnchorTile,
 	type SyntheticHiveObject,
 } from '@app/lib/hive-inspector'
+import type { SyntheticProjectObject } from '@app/lib/project-inspector'
 import { T } from '@app/lib/i18n'
 import { isHoveredObject, setHoveredObject } from '@app/lib/interactive-state'
 import { InspectorSection, Panel } from '@app/ui/anarkai'
@@ -30,6 +31,7 @@ import { Character } from 'ssh/population/character'
 import { Vehicle } from 'ssh/population/vehicle/entity'
 import { toWorldCoord } from 'ssh/utils/position'
 import HiveProperties from '../components/HiveProperties'
+import ProjectProperties from '../components/ProjectProperties'
 import CharacterProperties from '../components/properties/CharacterProperties'
 import FreightLineProperties from '../components/properties/FreightLineProperties'
 import SettlementProperties from '../components/properties/SettlementProperties'
@@ -143,6 +145,9 @@ const isFreightLineObject = (object: unknown): object is SyntheticFreightLineObj
 const isHiveObject = (object: unknown): object is SyntheticHiveObject =>
 	!!object && typeof object === 'object' && 'kind' in object && (object as any).kind === 'hive'
 
+const isProjectObject = (object: unknown): object is SyntheticProjectObject =>
+	!!object && typeof object === 'object' && 'kind' in object && (object as any).kind === 'project'
+
 const CharacterSelectionProperties = (props: { object?: unknown }) => (
 	<div data-selection-properties-kind="character">
 		<CharacterProperties character={props.object as Character} />
@@ -167,6 +172,12 @@ const FreightLineSelectionProperties = (props: { object?: unknown; onClose?: () 
 const HiveSelectionProperties = (props: { object?: unknown }) => (
 	<div data-selection-properties-kind="hive">
 		<HiveProperties hiveObject={props.object as SyntheticHiveObject} />
+	</div>
+)
+
+const ProjectSelectionProperties = (props: { object?: unknown }) => (
+	<div data-selection-properties-kind="project">
+		<ProjectProperties projectObject={props.object as SyntheticProjectObject} />
 	</div>
 )
 
@@ -211,6 +222,7 @@ const renderPropertiesForObject = (object: unknown, options: { onClose?: () => v
 	if (isFreightLineObject(object))
 		return <FreightLineSelectionProperties object={object} onClose={options.onClose} />
 	if (isHiveObject(object)) return <HiveSelectionProperties object={object} />
+	if (isProjectObject(object)) return <ProjectSelectionProperties object={object} />
 	if (object instanceof ZonesCollectionObject) return <ZonesSelectionProperties object={object} />
 	if (object instanceof ZoneObject)
 		return <ZoneSelectionProperties object={object} onClose={options.onClose} />

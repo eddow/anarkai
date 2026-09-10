@@ -99,6 +99,10 @@ function tileConstructionNeeds(content: unknown): Partial<Record<GoodType, numbe
 	if (isConstructionSiteShell(target)) {
 		return target.remainingNeeds as Partial<Record<GoodType, number>>
 	}
+	// Site phase (clearing → foundation): the foundation shortfall is the live need.
+	// The recipe half is forward-declared through the ledger (delivery branch reads
+	// it via `computeProjectForwardNeeds`); the self-haul branch only sees live
+	// storage, so it serves foundation goods until the shell exists.
 	return materialRemainingNeeds(
 		target.constructionSite!.foundationRequiredGoods,
 		target.foundationStorage!

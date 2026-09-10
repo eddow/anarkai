@@ -16,6 +16,8 @@ import * as gameContent from 'ssh/assets/game-content'
 import { Alveolus } from 'ssh/board/content/alveolus'
 import { BasicDwelling } from 'ssh/board/content/basic-dwelling'
 import { BuildDwelling } from 'ssh/board/content/build-dwelling'
+import type { TileBlockingEntry } from 'ssh/board/blocking-details'
+import { queryTileBlocking, transformStallReasons } from 'ssh/board/blocking-details'
 import type { TileContent } from 'ssh/board/content/content'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
@@ -31,6 +33,7 @@ import ConstructionProgressBar from '../ConstructionProgressBar'
 import EntityBadge from '../EntityBadge'
 import GoodsList from '../GoodsList'
 import HiveAnchorButton from '../HiveAnchorButton'
+import ProjectAnchorButton from '../ProjectAnchorButton'
 import PropertyGrid from '../PropertyGrid'
 import PropertyGridRow from '../PropertyGridRow'
 import WorkingIndicator from '../parts/WorkingIndicator'
@@ -225,20 +228,58 @@ const resolveTileTerrainForContentCase = (
 	return terrain
 }
 
-const transformWorkingWarning = (content: TransformAlveolus): string | undefined => {
-	if (!content.working || content.canWork) return
-	if (!content.hasOutputRoom) return String(T.alveolus.workingWarnings.noOutputRoom)
-	if (!content.isBelowProductRatioLimit) return String(T.alveolus.workingWarnings.productRatioLimit)
-	if (content.consumedGoods.length > 0 && !content.nextLoadGood) {
-		return String(T.alveolus.workingWarnings.noInputGood)
+const transformWorkingWarnings = (content: TransformAlveolus): string[] => {
+	return transformStallReasons(content).map(
+		(reason) => String(T.alveolus.workingWarnings[reason])
+	)
+}
+
+const formatTileBlockingEntry = (entry: TileBlockingEntry): string => {
+	switch (entry.kind) {
+		case 'deposit':
+			return String(
+				T.alveolus.workingWarnings.blockingDeposit({
+					type: entry.depositType,
+					amount: entry.amount,
+				})
+			)
+		case 'loose-good':
+			return String(
+				T.alveolus.workingWarnings.blockingLooseGood({
+					goodType: entry.goodType,
+					count: entry.count,
+				})
+			)
+		case 'vehicle':
+			return String(
+				T.alveolus.workingWarnings.blockingVehicle({
+					label: entry.vehicle.title,
+					type: entry.vehicleType,
+				})
+			)
 	}
-	return String(T.alveolus.workingWarnings.noAvailableWork)
+}
+
+const tileBlockingWarnings = (tile: Tile): string[] => {
+	try {
+		return queryTileBlocking(tile).map(formatTileBlockingEntry)
+	} catch {
+		return []
+	}
+}
+
+const workingWarnings = (tile: Tile, contentCase?: TileContentCase): string[] => {
+	const blocking = tileBlockingWarnings(tile)
+	if (blocking.length > 0) return blocking
+	if (tile.isBurdened) return [String(T.alveolus.workingWarnings.tileBurdened)]
+	const content = contentCase?.content
+	if (content instanceof TransformAlveolus) return transformWorkingWarnings(content)
+	return []
 }
 
 const workingWarning = (tile: Tile, contentCase?: TileContentCase): string | undefined => {
-	if (tile.isBurdened) return String(T.alveolus.workingWarnings.tileBurdened)
-	const content = contentCase?.content
-	if (content instanceof TransformAlveolus) return transformWorkingWarning(content)
+	const warnings = workingWarnings(tile, contentCase)
+	return warnings.length > 0 ? warnings[0] : undefined
 }
 
 interface TileContentHeaderProps {
@@ -371,19 +412,32 @@ const AlveolusTileHeader = (props: AlveolusTileHeaderProps) => {
 		get hiveTitle() {
 			return this.contentCase?.content.hive?.name?.trim() || 'Hive'
 		},
+		get siteProject() {
+			const content = this.contentCase?.content as { project?: unknown } | undefined
+			return (content?.project ?? undefined) as
+				| import('ssh/project').Project
+				| undefined
+		},
+		get siteProjectTitle() {
+			return this.siteProject?.name?.trim() || 'Project'
+		},
 		get zoneTitle() {
 			return customZoneTitle(props.tile)
 		},
 		get workingWarning() {
 			return workingWarning(props.tile, this.contentCase)
 		},
+		get workingWarnings() {
+			return workingWarnings(props.tile, this.contentCase)
+		},
 	}
 
 	return (
-		<div
-			if={props.game && model.contentCase && (model.contentCase.visualType || model.sprite)}
-			class="tile-properties__header"
-		>
+		<>
+			<div
+				if={props.game && model.contentCase && (model.contentCase.visualType || model.sprite)}
+				class="tile-properties__header"
+			>
 			<div class="tile-properties__identity">
 				<EntityBadge
 					game={props.game!}
@@ -411,14 +465,36 @@ const AlveolusTileHeader = (props: AlveolusTileHeaderProps) => {
 					checked={model.contentCase!.content.working}
 					burdened={!!model.workingWarning}
 					tooltip={T.alveolus.workingTooltip}
-					warning={model.workingWarning}
+					warning={model.workingWarnings.join('\n')}
 				/>
 			</div>
 			<div class="tile-properties__header-actions">
 				<ZoneAnchorButton if={model.zoneTitle} tile={props.tile} title={model.zoneTitle} />
 				<HiveAnchorButton tile={props.tile} title={model.hiveTitle} />
+				<ProjectAnchorButton
+					if={model.siteProject}
+					project={model.siteProject}
+					tile={props.tile}
+					title={model.siteProjectTitle}
+				/>
 			</div>
-		</div>
+			</div>
+			<div
+				if={props.game && model.contentCase && model.workingWarnings.length > 1}
+				class="tile-properties__header"
+				data-testid="tile-blocking-list"
+			>
+				<div style="display:grid; gap:0.25rem; width:100%;">
+					<for each={model.workingWarnings}>
+						{(text) => (
+							<span data-testid="tile-blocking-entry" style="color: var(--ak-text-muted)">
+								· {text}
+							</span>
+						)}
+					</for>
+				</div>
+			</div>
+		</>
 	)
 }
 

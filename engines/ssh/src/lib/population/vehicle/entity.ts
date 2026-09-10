@@ -12,6 +12,7 @@ import {
 	freightVehicleDockBay,
 	syncFreightVehicleDockRegistration,
 } from 'ssh/freight/vehicle-freight-dock-sync'
+import { relocateVehicleFromAlveolus } from 'ssh/freight/vehicle-relocation'
 import { maybeAdvanceVehicleFromCompletedAnchorStop } from 'ssh/freight/vehicle-run'
 import { collectVehicleAdvertisedJobs, collectVehicleProposedJobs } from 'ssh/freight/vehicle-work'
 import type { Game } from 'ssh/game/game'
@@ -277,6 +278,22 @@ export class Vehicle extends withInteractive(GameObject) {
 			tile,
 			`Vehicle ${debugObjectId(this) ?? ''}: cannot restore docked position without anchor tile`
 		)
+		// Stale anchor (demolished / variant-changed bay): relocate into another alveolus
+		// instead of restoring onto the stale center. Content check is duck-typed
+		// (`action.type === 'road-fret'`) to avoid a freight → vehicle → freight cycle.
+		const anchorContent = tile.content as { action?: { type?: string } } | undefined
+		if (
+			anchorContent?.action?.type !== 'road-fret' &&
+			(reason === 'undock' || reason === 'end-service') &&
+			relocateVehicleFromAlveolus(this.game, this, tile)
+		) {
+			traces.vehicle(this).log?.('vehicleJob.dock.placement', {
+				outcome: 'relocate',
+				reason,
+				anchorCoord: toAxialCoord(tile.position),
+			})
+			return
+		}
 		this.position = { ...tile.position }
 		traces.vehicle(this).log?.('vehicleJob.dock.placement', {
 			outcome: 'restore-position',

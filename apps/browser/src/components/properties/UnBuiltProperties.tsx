@@ -16,9 +16,13 @@ import {
 	tablerOutlineTrees,
 } from 'pure-glyf/icons'
 import type { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
+import { createSyntheticProjectObject } from '@app/lib/project-inspector'
 import { type ConstructionPhase, queryConstructionSiteView } from 'ssh/construction'
 import type { GoodType } from 'ssh/types/base'
 import EntityBadge from '../EntityBadge'
+import InspectorObjectLink from '../InspectorObjectLink'
+import LinkedEntityControl from '../LinkedEntityControl'
+import ProjectAnchorButton from '../ProjectAnchorButton'
 import PropertyGridRow from '../PropertyGridRow'
 
 css`
@@ -113,6 +117,8 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 		constructionMaterials: [] as Array<{ good: GoodType; required: number; delivered: number }>,
 		constructionTarget: '',
 		showConstruction: false,
+		projectName: '',
+		showProject: false,
 	})
 
 	effect`unbuilt-properties:zone`(() => {
@@ -189,6 +195,12 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 		}))
 	})
 
+	effect`unbuilt-properties:project`(() => {
+		const project = props.content?.project
+		state.showProject = !!project
+		state.projectName = project?.name?.trim() || 'Project'
+	})
+
 	return (
 		<>
 			<PropertyGridRow if={state.showZone}>
@@ -219,6 +231,27 @@ const UnBuiltProperties = (props: UnBuiltPropertiesProps) => {
 					<Badge if={state.isClearing} tone="yellow">
 						{T.clearing}
 					</Badge>
+					<LinkedEntityControl
+						if={state.showProject && props.content?.project}
+						object={createSyntheticProjectObject(
+							props.content!.tile.board.game,
+							props.content!.project!
+						)}
+					/>
+					<InspectorObjectLink
+						if={state.showProject && props.content?.project}
+						object={createSyntheticProjectObject(
+							props.content!.tile.board.game,
+							props.content!.project!
+						)}
+						label={state.projectName}
+					/>
+					<ProjectAnchorButton
+						if={state.showProject && props.content?.project}
+						project={props.content!.project}
+						tile={props.content!.tile}
+						title={state.projectName}
+					/>
 				</div>
 			</PropertyGridRow>
 

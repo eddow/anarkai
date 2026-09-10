@@ -9,6 +9,7 @@ import {
 import { traces } from 'ssh/dev/debug'
 import { gameIsaTypes } from 'ssh/npcs/utils'
 import { residentialBasicDwellingSite } from 'ssh/residential/constants'
+import type { Project } from 'ssh/project'
 import { SpecificStorage } from 'ssh/storage/specific-storage'
 import type { TerrainType } from 'ssh/types'
 import type { GoodType } from 'ssh/types/base'
@@ -54,6 +55,13 @@ export class UnBuiltLand extends TileContent {
 	public constructionSite?: ConstructionSiteState
 	public foundationStorage?: SpecificStorage
 	public plantedTrees?: PlantedTreesState
+	/** Owning committed project (placement provenance); set when materialized by `commitProject`. */
+	public project?: Project
+	/** Plan-entry configuration, applied to the finished alveolus at finalize. */
+	public planConfiguration?: {
+		ref: Ssh.ConfigurationReference
+		individual?: Ssh.AlveolusConfiguration
+	}
 	/** Dispose handle for the foundation-phase effect; cleared when content is replaced. */
 	private stopConstructionPhaseEffect?: () => void
 
@@ -275,9 +283,11 @@ export class UnBuiltLand extends TileContent {
 	}
 
 	canInteract(action: string): boolean {
-		// UnBuiltLand can accept building actions
+		// UnBuiltLand can accept building actions, unless a construction site
+		// (old "construction order", incl. a committed project entry) already
+		// occupies the tile — a sited tile blocks like a shell does.
 		if (action.startsWith('build:')) {
-			return true
+			return !this.site
 		}
 		// UnBuiltLand can accept zoning actions, but only if no project is set
 		if (action.startsWith('zone:')) {

@@ -489,6 +489,12 @@ const CharacterProperties = (props: CharacterPropertiesProps, scope: any) => {
 												object={resolveWorkTarget(choice)!}
 												class="character-work__target-control"
 											/>
+											<InspectorObjectLink
+												if={resolveWorkTarget(choice)}
+												object={resolveWorkTarget(choice)!}
+												label={choice.jobLabel}
+												class="character-work__target-link"
+											/>
 											<div class="character-work__content">
 												<div class="character-work__header">
 													<span class="character-work__type">{choice.jobLabel}</span>

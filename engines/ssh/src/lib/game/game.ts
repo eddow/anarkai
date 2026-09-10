@@ -26,7 +26,7 @@ import {
 	roadBordersForTrace,
 } from 'ssh/board/roads'
 import { Tile, type TileTerrainState } from 'ssh/board/tile'
-import { isConstructionSiteShell } from 'ssh/build-site'
+import { isConstructionSiteShell, materialRemainingNeeds } from 'ssh/build-site'
 import type { NetDeficitLedger, Reserve } from 'ssh/commerce/commerce-model'
 import { CommercialDemandTicker } from 'ssh/commerce/commercial-demand'
 import { computeNetDeficitLedger, computeProjectForwardNeeds } from 'ssh/commerce/deficit-ledger'
@@ -42,6 +42,7 @@ import {
 	constructionTargetFromSite,
 	createConstructionSiteState,
 	type DwellingTier,
+	projectFromConstructionTarget,
 	resolveAlveolusVariant,
 	VARIANT_DELIMITER,
 } from 'ssh/construction-state'
@@ -887,8 +888,12 @@ export class Game extends Eventful<GameEvents> {
 
 	/**
 	 * Commit a draft project: validate its placed entries against the board, then
-	 * materialize each entry as a construction shell (linked to the project) and
-	 * each road instantly, and freeze the project to `working` (now executing).
+	 * materialize each entry as a construction **site** (`UnBuiltLand.setSite`, the
+	 * old "construction order") linked to the project, and each road as a
+	 * {@link RoadConstructionSite} on its anchor tile, and freeze the project to
+	 * `working` (now executing). The site then runs the unchanged clearing flow:
+	 * harvesters clear the deposit (yielding loose goods), offload clears loose
+	 * goods, and the engineer lays the foundation once the tile is unburdened.
 	 *
 	 * Entries sitting on tiles planned for demolition are deferred: their structure
 	 * is bulldozed first by construction engineers, then the entry is materialized
@@ -925,7 +930,27 @@ export class Game extends Eventful<GameEvents> {
 			}
 			// Deferred until the structure here is demolished; skip the occupancy check.
 			if (demolitionKeys.has(`${entry.coord[0]},${entry.coord[1]}`)) continue
-			if (!tile.canInteract(`build:${entry.alveolusType}`) || !tile.isClear) {
+			// Match the authoring collision rule (`entryBlocked` in game.tsx): river /
+			// water / existing structure block. Deposits and loose goods do NOT block
+			// (`isClear` is deliberately not checked) — they are cleared after commit
+			// by the normal site flow (harvest → offload → foundation), not at commit.
+			if (tile.hydrology?.isChannel) {
+				return {
+					ok: false,
+					issues: [{ code: 'invalid-alveolus', message: `Tile ${entry.coord} is a river.` }],
+				}
+			}
+			const terrain =
+				tile.content instanceof UnBuiltLand
+					? tile.content.terrain
+					: (tile.terrainState?.terrain ?? tile.baseTerrain)
+			if (terrain === 'water') {
+				return {
+					ok: false,
+					issues: [{ code: 'invalid-alveolus', message: `Tile ${entry.coord} is water.` }],
+				}
+			}
+			if (!tile.canInteract(`build:${entry.alveolusType}`)) {
 				return {
 					ok: false,
 					issues: [{ code: 'invalid-alveolus', message: `Tile ${entry.coord} is blocked.` }],
@@ -933,7 +958,7 @@ export class Game extends Eventful<GameEvents> {
 			}
 		}
 
-		// Materialize entries NOT on demolition tiles as construction shells linked to the project.
+		// Materialize entries NOT on demolition tiles as construction sites linked to the project.
 		for (const entry of project.entries) {
 			if (demolitionKeys.has(`${entry.coord[0]},${entry.coord[1]}`)) continue
 			this.materializeProjectEntry(project, entry)
@@ -992,27 +1017,26 @@ export class Game extends Eventful<GameEvents> {
 	}
 
 	/**
-	 * Materialize a single project entry as a construction shell on the board.
-	 * No-op unless the tile currently holds `UnBuiltLand` (safe to re-call after a
-	 * demolition has cleared the tile).
+	 * Materialize a single project entry as a construction **site** on the board
+	 * (the old "construction order": `UnBuiltLand.setSite`, still carrying the
+	 * deposit + loose goods). The site then runs the unchanged clearing flow —
+	 * harvesters clear the deposit (yielding loose goods), offload clears loose
+	 * goods, and the engineer lays the foundation once the tile is unburdened
+	 * (`planned` → `foundation` → shell). No-op unless the tile currently holds
+	 * `UnBuiltLand` (safe to re-call after a demolition has cleared the tile).
 	 */
 	public materializeProjectEntry(project: Project, entry: ProjectEntry): void {
 		const tile = this.hex.getTile({ q: entry.coord[0], r: entry.coord[1] })
 		if (!tile || !(tile.content instanceof UnBuiltLand)) return
-		applyConstructionConcreteTerrain(tile)
-		const site = createConstructionSiteState({
+		if (tile.content.site) return
+		const site = projectFromConstructionTarget({
 			kind: 'alveolus',
 			alveolusType: entry.alveolusType,
 			variant: entry.variant,
 		})
-		site.phase = 'waiting_materials'
-		const shell = createConstructionShell(tile, site)
-		Object.assign(shell, {
-			project,
-			planConfiguration: entry.configuration ? { ...entry.configuration } : undefined,
-		})
-		this.hex.setTileContent(tile, shell)
-		tile.asGenerated = false
+		tile.content.setSite(site)
+		tile.content.project = project
+		tile.content.planConfiguration = entry.configuration ? { ...entry.configuration } : undefined
 		this.invalidateWorkPlanning('project.entry-materialized')
 	}
 
@@ -1065,6 +1089,29 @@ export class Game extends Eventful<GameEvents> {
 					state: 'building',
 					applied: content.constructionWorkSecondsApplied,
 					total,
+					remainingNeeds: needs,
+				})
+				addMissing(needs)
+				continue
+			}
+			if (content instanceof UnBuiltLand && content.site && ownedProject(content)) {
+				// Committed entry still in the site phase (clearing → foundation):
+				// report foundation demand as building so progress + missing goods
+				// stay live before the shell exists.
+				const site = content.constructionSite
+				const needs = site
+					? (materialRemainingNeeds(
+							site.foundationRequiredGoods,
+							content.foundationStorage
+						) as Partial<Record<GoodType, number>>)
+					: {}
+				items.push({
+					kind: 'alveolus',
+					label,
+					coord: entry.coord,
+					state: 'building',
+					applied: 0,
+					total: site?.foundationWorkSeconds ?? 0,
 					remainingNeeds: needs,
 				})
 				addMissing(needs)
@@ -3193,6 +3240,10 @@ export class Game extends Eventful<GameEvents> {
 			}
 			if (!(content instanceof UnBuiltLand)) continue
 			content.setSite(entry.site, constructionSite)
+			if (entry.projectIndex !== undefined) {
+				content.project = this.projects.byIndex(entry.projectIndex)
+			}
+			if (entry.configuration) content.planConfiguration = entry.configuration
 			for (const [good, qty] of Object.entries(entry.foundationGoods ?? {})) {
 				content.foundationStorage?.addGood(good as GoodType, qty as number)
 			}
@@ -3416,6 +3467,8 @@ export class Game extends Eventful<GameEvents> {
 						constructionPhase: content.constructionSite?.phase,
 						foundationGoods: content.foundationStorage?.stock ?? {},
 						foundationConsumedGoods: content.constructionSite?.foundationConsumedGoods ?? {},
+						projectIndex: content.project ? this.projects.indexOf(content.project) : undefined,
+						configuration: content.planConfiguration,
 					})
 				}
 			}

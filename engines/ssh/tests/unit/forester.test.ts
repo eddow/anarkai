@@ -140,6 +140,21 @@ describe('forester planted trees', () => {
 		expect((assignedMatch as any)?.path).toHaveLength(0)
 	})
 
+	it('lists a single forester job when assigned to the planter in sensing range', async () => {
+		const { engine, forester } = await loadForesterScenario([0])
+		const zoneTile = engine.game.hex.getTile({ q: 1, r: 0 })!
+		const worker = engine.game.population.createCharacter(
+			'Planter',
+			zoneTile.position as AxialCoord
+		)
+		worker.assignedAlveolus = forester
+		const snapshot = worker.workPlannerSnapshot
+		const foresterRows = (snapshot?.ranked ?? []).filter(
+			(candidate) => candidate.jobKind === 'forester'
+		)
+		expect(foresterRows).toHaveLength(1)
+	})
+
 	it('plants on forest terrain only for now', async () => {
 		const { engine, forester } = await loadForesterScenario([0])
 		const sandTile = engine.game.hex.getTile({ q: 1, r: 0 })!

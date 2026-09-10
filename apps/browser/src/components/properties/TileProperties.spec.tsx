@@ -77,6 +77,24 @@ vi.mock('ssh/board/content/unbuilt-land', () => ({
 	UnBuiltLand: MockUnBuiltLand,
 }))
 
+vi.mock('ssh/board/blocking-details', () => ({
+	queryTileBlocking: vi.fn(() => []),
+	transformStallReasons: (content: {
+		working: boolean
+		canWork: boolean
+		hasOutputRoom: boolean
+		isBelowProductRatioLimit: boolean
+		consumedGoods: string[]
+		nextLoadGood?: string
+	}) => {
+		if (!content.working || content.canWork) return []
+		if (!content.hasOutputRoom) return ['noOutputRoom']
+		if (!content.isBelowProductRatioLimit) return ['productRatioLimit']
+		if (content.consumedGoods.length > 0 && !content.nextLoadGood) return ['noInputGood']
+		return ['noAvailableWork']
+	},
+}))
+
 vi.mock('@app/lib/i18n', () => {
 	const i18nState = {
 		translator: {
@@ -95,6 +113,12 @@ vi.mock('@app/lib/i18n', () => {
 				workingTooltip: 'Working',
 				workingWarnings: {
 					tileBurdened: 'Tile is blocked',
+					blockingDeposit: ({ type, amount }: { type: string; amount: number }) =>
+						`Deposit: ${type} ×${amount}`,
+					blockingLooseGood: ({ goodType, count }: { goodType: string; count: number }) =>
+						`${goodType} ×${count} on tile`,
+					blockingVehicle: ({ label, type }: { label: string; type: string }) =>
+						`Vehicle: ${label} (${type})`,
 					noInputGood: 'No input good is available',
 					noOutputRoom: 'No output room',
 					productRatioLimit: 'Ratio limit reached',
@@ -386,6 +410,48 @@ describe('TileProperties', () => {
 		const indicator = container.querySelector('[data-testid="working-indicator"]')
 		expect(indicator?.getAttribute('data-burdened')).toBe('true')
 		expect(indicator?.getAttribute('title')).toBe('Working\nNo input good is available')
+	})
+
+	it('lists per-entry blocking lines with a joined tooltip', async () => {
+		const { queryTileBlocking } = await import('ssh/board/blocking-details')
+		vi.mocked(queryTileBlocking).mockReturnValue([
+			{ kind: 'deposit', depositType: 'tree', amount: 7 },
+			{ kind: 'loose-good', goodType: 'wood', count: 2, available: 2 },
+			{
+				kind: 'vehicle',
+				vehicle: { title: 'wheelbarrow v1' },
+				vehicleType: 'wheelbarrow',
+				docked: false,
+			},
+		] as never)
+		const tile = reactive({
+			content: new MockTransformAlveolus(),
+			isBurdened: true,
+			looseGoods: [],
+			board: {
+				game: {
+					loaded: Promise.resolve(),
+					getTexture: vi.fn(() => undefined),
+				},
+			},
+		})
+
+		stop = latch(container, <TileProperties tile={tile as never} />)
+
+		const indicator = container.querySelector('[data-testid="working-indicator"]')
+		expect(indicator?.getAttribute('data-burdened')).toBe('true')
+		expect(indicator?.getAttribute('title')).toBe(
+			'Working\nDeposit: tree ×7\nwood ×2 on tile\nVehicle: wheelbarrow v1 (wheelbarrow)'
+		)
+		const entries = [...container.querySelectorAll('[data-testid="tile-blocking-entry"]')].map(
+			(el) => el.textContent
+		)
+		expect(entries).toEqual([
+			'· Deposit: tree ×7',
+			'· wood ×2 on tile',
+			'· Vehicle: wheelbarrow v1 (wheelbarrow)',
+		])
+		vi.mocked(queryTileBlocking).mockReturnValue([])
 	})
 
 	it('renders construction shell needed goods in the tile properties materials row', () => {

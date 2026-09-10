@@ -1,3 +1,4 @@
+import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { isConstructionSiteShell } from 'ssh/build-site'
 import { demolishStructure } from 'ssh/construction-demolition'
 import { Game } from 'ssh/game/game'
@@ -343,7 +344,7 @@ describe('projects (placed alveoli + roads)', () => {
 		expect(project.stage).toBe('draft')
 	})
 
-	it('materializes entries as construction shells and defers roads to road engineers', async () => {
+	it('materializes entries as construction sites and defers roads to road engineers', async () => {
 		const game = new Game(
 			{ terrainSeed: 7, characterCount: 0, settlementGeneration: false },
 			{
@@ -370,8 +371,12 @@ describe('projects (placed alveoli + roads)', () => {
 			expect(project.stage).toBe('working')
 
 			const shell = game.hex.getTile({ q: 0, r: 0 })?.content
-			expect(isConstructionSiteShell(shell)).toBe(true)
+			// Commit materializes the old "construction order": an UnBuiltLand site
+			// (clearing → foundation → shell), not an instant shell.
+			expect(shell).toBeInstanceOf(UnBuiltLand)
+			expect((shell as UnBuiltLand).site).toBe('build:storage')
 			expect((shell as { project?: unknown }).project).toBe(project)
+			expect(game.projectProgress(project).items[0]?.state).toBe('building')
 
 			// Roads are built over time by road engineers, not applied at commit.
 			expect(game.hex.getRoadType({ q: 0, r: 1.5 })).toBeUndefined()
@@ -451,16 +456,17 @@ describe('projects (placed alveoli + roads)', () => {
 			expect(result.ok).toBe(true)
 			expect(project.stage).toBe('working')
 
-			// Entry is deferred: the existing structure is still there, not a shell.
+			// Entry is deferred: the existing structure is still there, not a site.
 			const tile = game.hex.getTile({ q: 0, r: 0 })!
-			expect(isConstructionSiteShell(tile.content)).toBe(false)
+			expect(tile.content).not.toBeInstanceOf(UnBuiltLand)
 
-			// Bulldoze → tile is clear; the deferred entry can now materialize.
+			// Bulldoze → tile is clear; the deferred entry can now materialize as a site.
 			demolishStructure(tile)
 			game.materializeDeferredEntriesAt({ q: 0, r: 0 })
 
 			const shell = game.hex.getTile({ q: 0, r: 0 })!.content
-			expect(isConstructionSiteShell(shell)).toBe(true)
+			expect(shell).toBeInstanceOf(UnBuiltLand)
+			expect((shell as UnBuiltLand).site).toBe('build:storage')
 			expect((shell as { project?: unknown }).project).toBe(project)
 		} finally {
 			game.destroy()
@@ -516,7 +522,7 @@ describe('projects (placed alveoli + roads)', () => {
 			expect(result.ok).toBe(false)
 			expect(second.stage).toBe('draft')
 			// Board occupancy rejects this (the tile already hosts `first`'s
-			// materialized shell), not a cross-plan conflict check.
+			// materialized site), not a cross-plan conflict check.
 			expect(result.ok === false && result.issues).toHaveLength(1)
 		} finally {
 			game.destroy()

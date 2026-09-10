@@ -185,14 +185,19 @@ export class HexBoard extends GameObject {
 				}
 
 				if (front === character) {
-					// At the front of the target's queue but still queued: the pass
-					// event that should have completed this QueueStep never fired.
-					traces.queue.warn?.('queue.waiter.free-front', {
-						waiter: character.name,
-						waiterUid: debugObjectId(character) ?? '',
-						targetCoord,
-						passed: step.passed,
-					})
+					// At the front of the target's queue but still queued. If `passed`
+					// is already true, the pass/fulfill event fired and `progress()` is
+					// about to fire `onComplete` — a transient (the watchdog scanned in
+					// the window between fulfill and completion), not a bug. Only warn
+					// when `passed` is still false: the front event genuinely never fired.
+					if (!step.passed) {
+						traces.queue.warn?.('queue.waiter.free-front', {
+							waiter: character.name,
+							waiterUid: debugObjectId(character) ?? '',
+							targetCoord,
+							passed: step.passed,
+						})
+					}
 					continue
 				}
 

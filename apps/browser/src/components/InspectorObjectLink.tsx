@@ -1,6 +1,7 @@
 import { css } from '@app/lib/css'
 import { showProps } from '@app/lib/follow-selection'
 import type { SyntheticHiveObject } from '@app/lib/hive-inspector'
+import type { SyntheticProjectObject } from '@app/lib/project-inspector'
 import type { SyntheticFreightLineObject } from 'ssh/freight/freight-line'
 import type { InspectorSelectableObject, InteractiveGameObject } from 'ssh/game/object'
 
@@ -34,6 +35,7 @@ interface InspectorObjectLinkProps {
 		| InteractiveGameObject
 		| SyntheticFreightLineObject
 		| SyntheticHiveObject
+		| SyntheticProjectObject
 		| undefined
 	label?: string
 	class?: string

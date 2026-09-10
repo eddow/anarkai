@@ -51,7 +51,7 @@ export function buildConstructionViewModel(
 		),
 		workLine:
 			typeof workTemplate === 'string' && total > 0
-				? workTemplate.replace('{applied}', String(applied)).replace('{total}', String(total))
+				? workTemplate.replace('{$applied}', String(applied)).replace('{$total}', String(total))
 				: total > 0
 					? `Work: ${applied}s / ${total}s`
 					: '',

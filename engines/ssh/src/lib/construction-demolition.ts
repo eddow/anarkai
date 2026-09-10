@@ -7,6 +7,8 @@ import type { Tile } from 'ssh/board/tile'
 import { isConstructionSiteShell } from 'ssh/build-site'
 import { resolveAlveolusVariant } from 'ssh/construction-state'
 import { traces } from 'ssh/dev/debug'
+import { relocateVehicleFromAlveolus } from 'ssh/freight/vehicle-relocation'
+import { isVehicleLineService } from 'ssh/population/vehicle/vehicle'
 import type { AlveolusType, GoodType } from 'ssh/types/base'
 import { axial, tileSize } from 'ssh/utils'
 import { toAxialCoord, toWorldCoord } from 'ssh/utils/position'
@@ -131,6 +133,22 @@ export function demolishStructure(tile: Tile): void {
 
 	const terrain = tile.terrainState?.terrain ?? tile.baseTerrain ?? 'grass'
 	if (content instanceof Alveolus) {
+		// Evict docked vehicles before the bay disappears: undock + relocate into
+		// another alveolus when possible, else anchor center (never fail demolition).
+		for (const vehicle of [...tile.board.game.vehicles]) {
+			if (!vehicle.isDocked) continue
+			if (vehicle.dockTile !== tile) continue
+			const svc = vehicle.service
+			if (!isVehicleLineService(svc)) continue
+			vehicle.undock()
+			if (!vehicle.position) vehicle.endService()
+			// The bay is about to be demolished: move the (now idle) vehicle into
+			// another unburdened alveolus when one exists, else keep the anchor
+			// center (never fail the demolition).
+			if (!relocateVehicleFromAlveolus(tile.board.game, vehicle, tile)) {
+				vehicle.position = { ...tile.position }
+			}
+		}
 		content.cleanUp()
 		content.deconstruct()
 		content.destroy()

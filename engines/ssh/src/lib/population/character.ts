@@ -890,8 +890,21 @@ export class Character extends withInteractive(withScripted(GameObject)) {
 			// push materializes each tile's jobs once per version and shares them across characters —
 			// no per-candidate pathfinding (removed in Phase 0). Ad-driven *matching* (retire the global
 			// sort) is the remaining Phase 3 behavioral work.
+			// Dedupe: the assigned alveolus already contributed its character-tailored job above
+			// (`getJob(this)`); the tile scan would re-contribute the same source's generic ad
+			// (e.g. one forester → two `forester` rows). Skip it — the tailored copy scores better.
+			const assigned = this.assignedAlveolus ? unwrap(this.assignedAlveolus) : undefined
 			for (const tile of this.game.hex.tilesAround(this.position, sensingRadius)) {
-				out.push(...tile.proposedJobs)
+				for (const job of tile.proposedJobs) {
+					if (
+						assigned &&
+						job.source.kind === 'alveolus' &&
+						unwrap(job.source.alveolus) === assigned
+					) {
+						continue
+					}
+					out.push(job)
+				}
 			}
 			for (const pick of collectVehicleWorkPicks(this.game, this)) {
 				const vehicle = pick.job.vehicle

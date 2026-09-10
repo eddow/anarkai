@@ -2,6 +2,7 @@ import { css } from '@app/lib/css'
 import { showProps } from '@app/lib/follow-selection'
 import { mrg } from '@app/lib/globals'
 import type { SyntheticHiveObject } from '@app/lib/hive-inspector'
+import type { SyntheticProjectObject } from '@app/lib/project-inspector'
 import { isHoveredObject, setHoveredObject } from '@app/lib/interactive-state'
 import { vehicleTextureKey } from 'engine-pixi/renderers/vehicle-visual'
 import {
@@ -112,6 +113,7 @@ interface LinkedEntityControlProps {
 		| InteractiveGameObject
 		| SyntheticFreightLineObject
 		| SyntheticHiveObject
+		| SyntheticProjectObject
 	class?: string
 }
 

@@ -107,6 +107,7 @@ export function computeProjectForwardNeeds(
 		for (const entry of project.entries) {
 			const content = getContent(entry.coord)
 			if (isConstructionSiteShell(content) || content instanceof Alveolus) continue
+			if (content instanceof UnBuiltLand && content.site) continue
 			const bill = billFor(
 				`e:${entry.alveolusType}#${entry.variant ?? ''}`,
 				() => hivePlanValidationRequirements([entry], []).requiredGoods

@@ -125,9 +125,17 @@ registerActionJobProvider('harvest', (alveolus) => {
 	// creating an endless skip→give-up→retry loop). The existence check is a bounded O(R²) hex-distance
 	// tile scan — NOT a Dijkstra. Reachability is deferred to `jobForCharacter` at execution: a walled-
 	// off deposit simply finds no path there and the worker wanders (Phase-0 trade-off).
+	// Clearing counts too: a committed site (`project`/`clearing` priority) carries a deposit that
+	// is NOT in a harvest zone, so the `any`-only gate would hide the job from the tile-scan path
+	// even though `jobForCharacter` would serve it.
 	const hasAnyDeposit = (() => {
 		for (const tile of hex.tilesAround(alveolus.tile.position, harvestNpcSearchDistance)) {
-			if (isValidDeposit(tile.position, 'any')) return true
+			if (
+				isValidDeposit(tile.position, 'any') ||
+				isValidDeposit(tile.position, 'project') ||
+				isValidDeposit(tile.position, 'clearing')
+			)
+				return true
 		}
 		return false
 	})()

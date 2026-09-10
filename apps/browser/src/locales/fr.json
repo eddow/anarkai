@@ -13,7 +13,7 @@
 		"bothButtonsPan": "Boutons gauche+droite enfoncés = panoramique"
 	},
 	"game": {
-		"gameTitle": "Jeu {game}"
+		"gameTitle": "Jeu {$game}"
 	},
 	"tile": {
 		"content": "Contenu",
@@ -133,6 +133,9 @@
 		"workingTooltip": "Basculer l'état de fonctionnement",
 		"workingWarnings": {
 			"tileBurdened": "Bloqué par des marchandises, un dépôt ou un véhicule sur cette tuile",
+			"blockingDeposit": "Dépôt : {$type} ×{$amount}",
+			"blockingLooseGood": "{$goodType} ×{$count} sur la tuile",
+			"blockingVehicle": "Véhicule : {$label} ({$type})",
 			"noInputGood": "Aucune marchandise d'entrée n'est disponible",
 			"noOutputRoom": "Aucune place n'est disponible pour les marchandises de sortie",
 			"productRatioLimit": "La limite du ratio produit est atteinte",
@@ -140,7 +143,7 @@
 		},
 		"cleanUp": "Nettoyer",
 		"cleanUpTooltip": "Vider tous les stocks",
-		"cleanUpGoodTooltip": "Vider {goodType}",
+		"cleanUpGoodTooltip": "Vider {$goodType}",
 		"cleanUpConfirmText": "Êtes-vous sûr ? C'est irréversible.",
 		"clear": "Vider",
 		"keep": "Garder"
@@ -148,7 +151,7 @@
 	"storage": {
 		"configPreset": "Préréglage de configuration",
 		"configPresetHint": "Sauvegarder ou réutiliser les paramètres de tampon/autorisation",
-		"configCreateLabel": "Créer '{name}'",
+		"configCreateLabel": "Créer '{$name}'",
 		"configSpecific": "Spécifique (cette alvéole uniquement)",
 		"configNameConflict": "Une configuration avec ce nom existe déjà"
 	},

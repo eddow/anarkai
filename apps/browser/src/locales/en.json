@@ -13,7 +13,7 @@
 		"bothButtonsPan": "Both left+right down = pan"
 	},
 	"game": {
-		"gameTitle": "Game {game}"
+		"gameTitle": "Game {$game}"
 	},
 	"tile": {
 		"content": "Content",
@@ -133,6 +133,9 @@
 		"workingTooltip": "Toggle working state",
 		"workingWarnings": {
 			"tileBurdened": "Blocked by goods, a deposit, or a vehicle on this tile",
+			"blockingDeposit": "Deposit: {$type} ×{$amount}",
+			"blockingLooseGood": "{$goodType} ×{$count} on tile",
+			"blockingVehicle": "Vehicle: {$label} ({$type})",
 			"noInputGood": "No input good is available",
 			"noOutputRoom": "No room is available for output goods",
 			"productRatioLimit": "The product ratio limit is reached",
@@ -140,7 +143,7 @@
 		},
 		"cleanUp": "Clean up",
 		"cleanUpTooltip": "Empty all stored goods",
-		"cleanUpGoodTooltip": "Empty {goodType}",
+		"cleanUpGoodTooltip": "Empty {$goodType}",
 		"cleanUpConfirmText": "Stocks will be emptied and left on the ground. Are you sure? This is irreversible.",
 		"clear": "Clear",
 		"keep": "Keep"
@@ -148,7 +151,7 @@
 	"storage": {
 		"configPreset": "Configuration preset",
 		"configPresetHint": "Save or reuse buffer/allowance setups",
-		"configCreateLabel": "Create '{name}'",
+		"configCreateLabel": "Create '{$name}'",
 		"configSpecific": "Specific (this alveolus only)",
 		"configNameConflict": "A configuration with this name already exists"
 	},

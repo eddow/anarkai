@@ -86,8 +86,11 @@ Transitions (`ProjectCollection`):
 
 Commit runs `validateProjectStructure` (rejects empty / unknown alveolus type / missing
 named configuration — disconnected entries are allowed and group into several hives
-after commit) plus a board-occupancy check (`canInteract(build:)` + `isClear`), then freezes
-`draft → working` in the same call. There is **no** `validating` stage and no research work — the
+after commit) plus a board-occupancy check (river / water / `canInteract(build:)` — the same
+rule as the authoring collision check `entryBlocked`), then freezes
+`draft → working` in the same call. Deposits and loose goods do **not** block commit
+(`isClear` is deliberately not checked): they are cleared after commit by the normal site
+flow (harvest → offload → foundation), not at commit. There is **no** `validating` stage and no research work — the
 `engineer.research` "study" variant produces no jobs. Science/study is a separate deferred surface; see
 [`../plans/science.md`](../plans/science.md).
 
@@ -107,13 +110,42 @@ Construction collides against the **present board + footprint** — there are no
 
 ## Placement
 
-`Game.commitProject` materializes a `draft` project:
+`Game.commitProject` materializes a `draft` project as the old "construction order"
+(`UnBuiltLand.setSite`), unchanged — commit never builds shells directly:
 
-- Every **entry** becomes a construction shell (`BuildAlveolus`) linked to the project
-  (`shell.project === project`), unless it sits on a demolition tile — those entries are **deferred**
-  until the structure there is bulldozed (`materializeDeferredEntriesAt`).
+- Every **entry** becomes a construction **site** on its `UnBuiltLand` tile
+  (`content.site = build:<type>[.variant]`, `content.project === project`,
+  `content.planConfiguration` from the entry), unless it sits on a demolition tile —
+  those entries are **deferred** until the structure there is bulldozed
+  (`materializeDeferredEntriesAt`). A sited tile blocks further builds
+  (`UnBuiltLand.canInteract(build:)` is false while `site` is set), so a second
+  project overlapping it is refused by the board-occupancy check.
 - Every **road** stays in `project.roads` and becomes a `RoadConstructionSite` on its anchor tile
   (see "Roads" below).
+
+### Clearing flow (site → foundation → shell → construction)
+
+After commit each site runs the unchanged clearing chain — deposits and loose goods are
+resources to harvest and haul, never commit blockers:
+
+1. **Harvest** — harvesters clear the tile's `deposit` (chopper for trees/bushes, cutter
+   for stones), yielding loose goods on the tile.
+2. **Offload** — vehicles/offload clear loose goods from the site tile
+   (`jobBalance.offload.projectTile`).
+3. **Foundation** — once the tile is unburdened (`!isBurdened`, phase `planned` →
+   `foundation`), the engineer lays the foundation (foundation goods from
+   `foundationStorage`) and promotes the site to a construction shell
+   (`createConstructionShell` → `BuildAlveolus`, `waiting_materials`).
+4. **Construction** — the shell advertises material demand, receives goods, and the
+   engineer builds it (`constructionStep` → finished alveolus, carrying the entry's
+   `planConfiguration`).
+
+Commerce reads this live: a sited tile advertises its foundation demand through
+`computeNetDeficitLedger` (the recipe half is forward-declared only while the entry is
+still unmaterialized, e.g. deferred on a demolition tile — `computeProjectForwardNeeds`);
+once promoted, the shell advertises the same demand
+normally. `Game.projectProgress` reports sited entries as `building` (foundation demand)
+so progress and `missingGoods` stay live before the shell exists.
 
 ## Demolition
 
@@ -126,6 +158,9 @@ A project can plan to bulldoze existing board content. The sequence is
   refund as loose goods); road engineers run `demolishRoad` jobs (one segment at a time, ~50% refund as
   loose goods on the border's anchor tile).
 - Refunded goods land on the tile as loose goods and are re-used by the economy.
+- Once the tile is `UnBuiltLand` again, the deferred entry materializes as a site
+  (`materializeDeferredEntriesAt`) and joins the clearing flow above
+  (bulldoze → clean → foundation → construction).
 
 ## Roads
 
@@ -172,8 +207,10 @@ drag the divider to move the default cutoff.
 **Forward declaration.** A working project's **deferred** (not-yet-materialized) entry bills and
 unbuilt road-segment recipes are added
 to the deficit ledger's demand side (`ProjectForwardNeed`), so the deficit reads the true forward demand
-even before a demolition clears the tile or an anchor frees. Delivery skips forward-declared needs (no live storage); once
-materialized, the shell advertises the same demand. Road sites advertise through the normal
+even before a demolition clears the tile or an anchor frees. A materialized **site** advertises its
+foundation demand live (the recipe half appears once foundation promotes it to a shell).
+Delivery skips forward-declared needs (no live storage); once
+materialized, the site/shell advertises the same demand. Road sites advertise through the normal
 construction-demand path (self-haul and delivery both serve them). A construction plan **produces nothing** — cleared
 resources and demolition leftovers are not accounted against the project, so the ledger's `surplus`
 stays `0` for construction demand.
@@ -195,7 +232,8 @@ The **bill** is the expected totals (`validationProgress.requiredGoods` — the 
 bill). Committed projects show **live** progress (`Game.projectProgress`, read from the board — not the frozen
 plan): an aggregate `ConstructionProgressBar` (`completed` / `total`) plus per-item state
 (`pending` / `building` / `done`) for each alveolus entry and road segment, and the goods-still-missing
-count (`remainingNeeds` summed across materialized shells). An entry counts `done` only when the
+count (`remainingNeeds` summed across materialized sites + shells). A sited entry reads `building`
+(foundation demand); an entry counts `done` only when the
 tile holds the planned alveolus type/variant; a road site counts only for its owning project.
 
 ## Interface

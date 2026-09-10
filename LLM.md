@@ -129,6 +129,7 @@ Popup buttons live outside `.app-palette-ide` scope, so they are styled by `.ak-
 - Inspector UI: tile alveolus header uses `HiveAnchorButton` → `showProps(syntheticHive)`. The button now uses a **glyph icon** from `pure-glyf/icons` rather than a borrowed building sprite, so avoid reintroducing hive-specific art in `visual-content.ts` unless you truly want terrain/rendered world usage too.
 - Hive metadata is now two-layered: alveolus `working` remains the local flag/config, while effective runtime activity is `alveolus.configuration.working && hive.working`. Hive `name`/`working` are preserved through save-load and topology rebuilds; rebuilt names must go through `generateRebuiltHiveName(...)` instead of open-coding suffixes.
 
-### Sandboxes
+### Internals
 
-`sandbox` folders are to be used instead of `/tmp`
+- `sandbox` folders are to be used instead of `/tmp`
+- `git` is available for *read-only* operations! No stash, checkout, commit, ...

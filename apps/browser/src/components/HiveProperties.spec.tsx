@@ -116,7 +116,7 @@ vi.mock('@app/lib/i18n', () => {
 				blocking: {
 					no_engineer_in_range: 'No engineer in range',
 				},
-				workProgress: 'Work: {applied}s / {total}s',
+				workProgress: 'Work: {$applied}s / {$total}s',
 			},
 		},
 	}

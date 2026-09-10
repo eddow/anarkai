@@ -8,11 +8,6 @@ overrides:
   vite: 8.0.10
   '@types/node': 25.0.10
 
-patchedDependencies:
-  npc-script@1.0.0:
-    hash: 125f2883c5626fc04436dc1e1b0fe6c395a3413096900721fc26fd197ac72856
-    path: patches/npc-script@1.0.0.patch
-
 importers:
 
   .:
@@ -70,10 +65,10 @@ importers:
         version: 1.0.14
       npc-script:
         specifier: ^1.0.0
-        version: 1.0.0(patch_hash=125f2883c5626fc04436dc1e1b0fe6c395a3413096900721fc26fd197ac72856)
+        version: 1.0.0
       omni18n:
-        specifier: ^1.1.17
-        version: 1.1.17
+        specifier: ^1.2.0
+        version: 1.2.0
       parse-svg-path:
         specifier: 0.1.2
         version: 0.1.2
@@ -292,7 +287,7 @@ importers:
         version: 1.0.14
       npc-script:
         specifier: ^1.0.0
-        version: 1.0.0(patch_hash=125f2883c5626fc04436dc1e1b0fe6c395a3413096900721fc26fd197ac72856)
+        version: 1.0.0
       typescript:
         specifier: ~5.8.3
         version: 5.8.3
@@ -2935,8 +2930,8 @@ packages:
   omggif@1.0.10:
     resolution: {integrity: sha512-LMJTtvgc/nugXj0Vcrrs68Mn2D1r0zf630VNtqtpI1FEO7e+O9FP4gqs9AcnBaSEeoHIPm28u6qgPR0oyEpGSw==}
 
-  omni18n@1.1.17:
-    resolution: {integrity: sha512-+GaouaVwbdLj77cjaHDqPcVdSQJxcCbLj6f69aAV7J5vhtRBmxfx70aXaf2a7HRwz2QwwI8jNma+sUHTyhxL/Q==}
+  omni18n@1.2.0:
+    resolution: {integrity: sha512-sf8k2Ipw76s9nUSePthf2m1193wvvRuUEQ+NY9gZBP8FdpWIycZv3uiKk8QtfV+xd2Nny/l0od2n5xhifYALLg==}
     hasBin: true
 
   once@1.4.0:
@@ -6363,7 +6358,7 @@ snapshots:
     dependencies:
       '@babel/parser': 7.28.5
 
-  npc-script@1.0.0(patch_hash=125f2883c5626fc04436dc1e1b0fe6c395a3413096900721fc26fd197ac72856): {}
+  npc-script@1.0.0: {}
 
   oauth-sign@0.9.0: {}
 
@@ -6373,7 +6368,7 @@ snapshots:
 
   omggif@1.0.10: {}
 
-  omni18n@1.1.17:
+  omni18n@1.2.0:
     optionalDependencies:
       '@rollup/rollup-linux-x64-gnu': 4.60.4
       '@rollup/rollup-win32-x64-msvc': 4.60.4

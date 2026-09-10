@@ -153,7 +153,7 @@ vi.mock('@app/lib/i18n', () => {
 				blocking: {
 					construction_site_paused: 'Construction site is paused',
 				},
-				workProgress: 'Work: {applied}s / {total}s',
+				workProgress: 'Work: {$applied}s / {$total}s',
 			},
 			alveolus: {
 				commands: 'Commands',
