@@ -397,9 +397,13 @@ export class HexBoard extends GameObject {
 		return true
 	}
 
-	/** Apply border-road movement bonuses only when moving between adjacent tile centers. */
+	/** Apply border-road movement bonuses only when moving between adjacent tile centers.
+	 *
+	 * A road over impassable ground (water) acts as a bridge: the edge is crossable at
+	 * normal speed (walkTime 1, no road bonus) — but only on the roaded border.
+	 * Water without a road stays Infinity.
+	 */
 	walkTimeBetween(from: Positioned, to: Positioned, baseWalkTime: number): number {
-		if (!Number.isFinite(baseWalkTime)) return baseWalkTime
 		const fromCoord = toAxialCoord(from)
 		const toCoord = toAxialCoord(to)
 		if (!fromCoord || !toCoord) return baseWalkTime
@@ -410,6 +414,11 @@ export class HexBoard extends GameObject {
 		}
 		const borderCoord = axial.linear([0.5, fromTile], [0.5, toTile])
 		const roadType = this.getRoadType(borderCoord)
+		if (!Number.isFinite(baseWalkTime)) {
+			// Bridge: road over water is crossable at normal walking speed.
+			if (roadType) return 1
+			return baseWalkTime
+		}
 		const multiplier =
 			roadType && this.roadEffectAvailable(fromTile, toTile)
 				? ROAD_WALK_TIME_MULTIPLIERS[roadType]

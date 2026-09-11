@@ -39,19 +39,27 @@ import type { Character } from 'ssh/population/character'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
 import type { GoodType } from 'ssh/types/base'
 import { type AxialCoord, axial } from 'ssh/utils'
-import { GenerationCache } from 'ssh/utils/cell'
 import { type Positioned, toAxialCoord } from 'ssh/utils/position'
 import { maxWalkTime } from '../../../assets/constants'
 
-export interface VehicleZoneBrowseSelection {
+/**
+ * Cheap, plan-agnostic zone-browse answer: *what* is worth doing in this zone, not *how* to get
+ * there. Produced by {@link findVehicleZoneBrowseSelection} without any pathfinding so decision-only
+ * callers (begin-service, stop advance, joint-line verification) always read live state.
+ */
+export interface VehicleZoneBrowseMatch {
 	readonly action: 'load' | 'provide'
 	readonly goodType: GoodType
 	readonly quantity?: number
 	readonly targetTile: Tile
-	readonly path: AxialCoord[]
 	readonly adSource: FreightAdSource
 	readonly priorityTier: FreightPriorityTier
 	readonly score: number
+}
+
+/** A {@link VehicleZoneBrowseMatch} with the concrete approach path resolved for grab execution. */
+export interface VehicleZoneBrowseSelection extends VehicleZoneBrowseMatch {
+	readonly path: AxialCoord[]
 }
 
 interface ZoneBrowseUtilityContext {
@@ -84,18 +92,25 @@ export function zoneBrowseLoadPriorityTier(adSource: FreightAdSource): FreightPr
 	return adSource === 'vehicle-station' ? 'pureLine' : 'lineAndOffloadJoint'
 }
 
-function pathToTile(
-	game: Game,
-	_character: Character,
-	startPos: Positioned,
-	targetTile: Tile
-): AxialCoord[] | undefined {
+function pathToTile(game: Game, startPos: Positioned, targetTile: Tile): AxialCoord[] | undefined {
 	const targetCoord = toAxialCoord(targetTile.position)
 	const startCoord = toAxialCoord(startPos)
 	if (!targetCoord || !startCoord) return undefined
 	const roundedStart = axial.round(startCoord)
 	if (axial.key(targetCoord) === axial.key(roundedStart)) return []
 	return game.hex.findPathForVehicleServiceBorder(roundedStart, targetTile.position, maxWalkTime)
+}
+
+/**
+ * Cheap distance proxy used for decision scoring when no path is computed. The old code scored by
+ * A* path length; decision-only callers no longer run A*, so an axial distance is close enough to
+ * rank nearby tiles while keeping the zone scan allocation-free.
+ */
+function tileDistance(startPos: Positioned, tile: Tile): number {
+	const start = toAxialCoord(startPos)
+	const target = toAxialCoord(tile.position)
+	if (!start || !target) return Number.POSITIVE_INFINITY
+	return axial.distance(axial.round(start), axial.round(target))
 }
 
 export function zoneBrowseUtilityContext(
@@ -146,15 +161,18 @@ function explicitZoneLoadGoods(
 	return goods
 }
 
-function pickZoneLoadSelection(
+/**
+ * Ranked load candidates, best first. `exist?` reads `[0]`; `path?` retries down the list so a
+ * single unreachable winner does not hide a reachable runner-up.
+ */
+function collectZoneLoadMatches(
 	game: Game,
-	character: Character,
 	vehicle: Vehicle,
 	line: FreightLineDefinition,
 	zoneStop: FreightStop & { zone: FreightZoneDefinition },
 	startPos: Positioned,
 	utility: ZoneBrowseUtilityContext
-): VehicleZoneBrowseSelection | undefined {
+): (VehicleZoneBrowseMatch & { distance: number })[] {
 	const neededGoods = new Set(Object.keys(utility.remainingNeededGoods) as GoodType[])
 	// Gather zones may have no loadSelection; still treat standalone construction /
 	// local halt need as selectable so begin-service and zone-load can see loose goods.
@@ -177,13 +195,13 @@ function pickZoneLoadSelection(
 	const selectableGoods = zoneStop.loadSelection
 		? new Set(listGoodTypesMatchingSelectionPolicy(zoneStop.loadSelection, [...neededGoods]))
 		: new Set(gatherSelectableGoodTypes(line, [...neededGoods]))
-	if (selectableGoods.size === 0) return undefined
-	let best: (VehicleZoneBrowseSelection & { score: number }) | undefined
+	if (selectableGoods.size === 0) return []
+	const matches: (VehicleZoneBrowseMatch & { distance: number })[] = []
 	for (const tile of freightZoneTiles(game, zoneStop.zone)) {
 		const tileAdSource = inferZoneLoadAdSource(tile)
 		const candidates: GoodType[] = []
 		for (const loose of tile.availableGoods) {
-			if (!loose.available || loose.isRemoved) continue
+			if (loose.claimedBy !== undefined || loose.isRemoved) continue
 			const goodType = loose.goodType as GoodType
 			if (!selectableGoods.has(goodType)) continue
 			if ((utility.remainingNeededGoods[goodType] ?? 0) <= 0 && !neededGoods.has(goodType)) continue
@@ -191,11 +209,10 @@ function pickZoneLoadSelection(
 			candidates.push(goodType)
 		}
 		if (candidates.length === 0) continue
-		const path = pathToTile(game, character, startPos, tile)
-		if (!path) continue
+		const distance = tileDistance(startPos, tile)
 		for (const goodType of candidates) {
 			const tileAvailable = tile.availableGoods.filter(
-				(g) => g.goodType === goodType && g.available && !g.isRemoved
+				(g) => g.goodType === goodType && g.claimedBy === undefined && !g.isRemoved
 			).length
 			// Single-stop / last-stop local exchange has no further-stop need projection, but the
 			// current halt can still sink goods (construction / hive room). Count both.
@@ -216,37 +233,35 @@ function pickZoneLoadSelection(
 			const score = scoreVehicleCandidate({
 				kind: 'zoneLoad',
 				urgency: jobBalance.loadOntoVehicle,
-				distance: path.length,
+				distance,
 				adSource,
 				priorityTier,
 				quantity,
 			}).score
-			if (!best || score > best.score || (score === best.score && path.length < best.path.length)) {
-				best = {
-					action: 'load',
-					goodType,
-					quantity,
-					targetTile: tile,
-					path,
-					adSource,
-					priorityTier,
-					score,
-				}
-			}
+			matches.push({
+				action: 'load',
+				goodType,
+				quantity,
+				targetTile: tile,
+				adSource,
+				priorityTier,
+				score,
+				distance,
+			})
 		}
 	}
-	return best
+	matches.sort((a, b) => b.score - a.score || a.distance - b.distance)
+	return matches
 }
 
 function pickZoneProvideSelection(
 	game: Game,
-	character: Character,
 	vehicle: Vehicle,
 	line: FreightLineDefinition,
 	zoneStop: FreightStop & { zone: FreightZoneDefinition },
 	startPos: Positioned,
 	utility: ZoneBrowseUtilityContext
-): VehicleZoneBrowseSelection | undefined {
+): VehicleZoneBrowseMatch | undefined {
 	const hasExplicitUnload = !!zoneStop.unloadSelection
 	if (
 		!hasExplicitUnload &&
@@ -265,10 +280,11 @@ function pickZoneProvideSelection(
 	const canProvide = hasExplicitUnload || isDistributeStop || hasSurplus
 	if (!canProvide) return undefined
 	const priorityTier: FreightPriorityTier = 'pureOffload'
-	let best: (VehicleZoneBrowseSelection & { score: number }) | undefined
+	let best: (VehicleZoneBrowseMatch & { distance: number }) | undefined
 	for (const tile of freightZoneTiles(game, zoneStop.zone)) {
 		const content = freightConstructionDemandTarget(tile.content)
 		if (!content || content.destroyed || content.isReady) continue
+		const distance = tileDistance(startPos, tile)
 		for (const goodType of Object.keys(content.remainingNeeds) as GoodType[]) {
 			const need = content.effectiveRemainingNeeds[goodType] ?? 0
 			if (need <= 0) continue
@@ -295,26 +311,24 @@ function pickZoneProvideSelection(
 			if (room <= 0) continue
 			const quantity = Math.min(need, available, room)
 			if (quantity <= 0) continue
-			const path = pathToTile(game, character, startPos, tile)
-			if (!path) continue
 			const score = scoreVehicleCandidate({
 				kind: 'zoneProvide',
 				urgency: jobBalance.provideFromVehicle,
-				distance: path.length,
+				distance,
 				adSource: CONSTRUCTION_DEMAND_AD_SOURCE,
 				priorityTier,
 				quantity,
 			}).score
-			if (!best || score > best.score) {
+			if (!best || score > best.score || (score === best.score && distance < best.distance)) {
 				best = {
 					action: 'provide',
 					goodType,
 					quantity,
 					targetTile: tile,
-					path,
 					adSource: CONSTRUCTION_DEMAND_AD_SOURCE,
 					priorityTier,
 					score,
+					distance,
 				}
 			}
 		}
@@ -322,23 +336,24 @@ function pickZoneProvideSelection(
 	return best
 }
 
-// The zone-browse selection is character-independent when `startPos` is explicit (and the default
-// `character.position` equals `vehicle.effectivePosition` for an operating character). It is recomputed
-// once per (character × vehicle) in `findVehicleOffloadJobApproach` → `pickInitialVehicleServiceCandidate`
-// → `findBeginServiceActionableWork`. Cache it per (vehicle, line, stop, rounded start, candidateVersion)
-// so the same zone evaluation collapses to one computation per version. `candidateVersion` excludes
-// intra-sweep ownership bumps (operator/service/assignment), which zone-browse never reads.
-const zoneBrowseCache = new GenerationCache<VehicleZoneBrowseSelection | undefined>()
-
-export function pickVehicleZoneBrowseSelection(
+/**
+ * Two-phase zone query — **exist?** phase.
+ *
+ * Answers "is there something worth doing in this zone?" from live state only: it scans
+ * {@link freightZoneTiles} + `tile.availableGoods` with the current policy/need/room gates, does no
+ * pathfinding, keeps no cache, and reads no version counter. Decision-only callers (begin-service,
+ * stop advance, joint-line verification, movement target) use this; the grab path re-resolves with
+ * {@link pickVehicleZoneBrowseSelection} and validates reachability there.
+ */
+export function findVehicleZoneBrowseSelection(
 	game: Game,
 	character: Character,
 	vehicle: Vehicle,
 	line: FreightLineDefinition,
 	stop: FreightStop,
 	startPos: Positioned = character.position
-): VehicleZoneBrowseSelection | undefined {
-	const end = profile.proposedJobs.begin?.('pickVehicleZoneBrowseSelection', () => ({
+): VehicleZoneBrowseMatch | undefined {
+	const end = profile.proposedJobs.begin?.('findVehicleZoneBrowseSelection', () => ({
 		characterUid: debugObjectId(character) ?? '',
 		lineId: debugObjectId(line),
 		stopIndex: line.stops.indexOf(stop),
@@ -347,38 +362,76 @@ export function pickVehicleZoneBrowseSelection(
 		if (!('zone' in stop)) return undefined
 		const zoneStop = stop as FreightStop & { zone: FreightZoneDefinition }
 
-		const startCoord = toAxialCoord(startPos)
-		const startKey = startCoord ? axial.key(axial.round(startCoord)) : ''
-		const cacheKey =
-			`${debugObjectId(vehicle) ?? ''}:${debugObjectId(line) ?? ''}:` +
-			`${debugObjectId(stop) ?? ''}:${startKey}`
-		return zoneBrowseCache.getOrCompute(game, game.candidateVersion, cacheKey, () =>
-			computeVehicleZoneBrowseSelection(game, character, vehicle, line, zoneStop, startPos)
-		)
+		const utility = zoneBrowseUtilityContext(game, vehicle, line, zoneStop)
+		if (!utility) return undefined
+		const loads = collectZoneLoadMatches(game, vehicle, line, zoneStop, startPos, utility)
+		const load = loads[0]
+		const provide = pickZoneProvideSelection(game, vehicle, line, zoneStop, startPos, utility)
+		return !load ? provide : !provide ? load : provide.score >= load.score ? provide : load
 	} finally {
 		end?.()
 	}
 }
 
-function computeVehicleZoneBrowseSelection(
+/**
+ * Ranked zone matches, best first, for grab execution. Load candidates retry down the ranked list;
+ * provide has a single best (construction sinks, no loose claim involved).
+ */
+function collectZoneBrowseMatches(
+	game: Game,
+	vehicle: Vehicle,
+	line: FreightLineDefinition,
+	zoneStop: FreightStop & { zone: FreightZoneDefinition },
+	startPos: Positioned,
+	utility: ZoneBrowseUtilityContext
+): VehicleZoneBrowseMatch[] {
+	const loads = collectZoneLoadMatches(game, vehicle, line, zoneStop, startPos, utility)
+	const provide = pickZoneProvideSelection(game, vehicle, line, zoneStop, startPos, utility)
+	if (!provide) return loads
+	// Preserve exist?-phase winner ordering: sort by score so the first reachable match wins,
+	// matching what `findVehicleZoneBrowseSelection` would have picked among reachable ones.
+	return [...loads, provide].sort((a, b) => b.score - a.score)
+}
+
+/**
+ * Two-phase zone query — **path?** phase.
+ *
+ * Walks the ranked matches and returns the first reachable one (single `pathToTile` per
+ * candidate, best first). Returns `undefined` when nothing is reachable, letting the caller
+ * degrade to soft idle + replan instead of minting goods.
+ */
+export function pickVehicleZoneBrowseSelection(
 	game: Game,
 	character: Character,
 	vehicle: Vehicle,
 	line: FreightLineDefinition,
-	zoneStop: FreightStop & { zone: FreightZoneDefinition },
-	startPos: Positioned
+	stop: FreightStop,
+	startPos: Positioned = character.position
 ): VehicleZoneBrowseSelection | undefined {
+	if (!('zone' in stop)) return undefined
+	const zoneStop = stop as FreightStop & { zone: FreightZoneDefinition }
 	const utility = zoneBrowseUtilityContext(game, vehicle, line, zoneStop)
 	if (!utility) return undefined
-	const load = pickZoneLoadSelection(game, character, vehicle, line, zoneStop, startPos, utility)
-	const provide = pickZoneProvideSelection(
-		game,
-		character,
-		vehicle,
-		line,
-		zoneStop,
-		startPos,
-		utility
-	)
-	return !load ? provide : !provide ? load : provide.score >= load.score ? provide : load
+	for (const match of collectZoneBrowseMatches(game, vehicle, line, zoneStop, startPos, utility)) {
+		const path = pathToTile(game, startPos, match.targetTile)
+		if (!path) continue
+		return { ...match, path }
+	}
+	return undefined
+}
+
+/**
+ * Reachability-aware zone check for stop-leave decisions: like `exist?` but validates that at
+ * least one ranked match is actually reachable, so an unreachable-but-present good never reads as
+ * "work remains" forever.
+ */
+export function zoneBrowseHasReachableMatch(
+	game: Game,
+	character: Character,
+	vehicle: Vehicle,
+	line: FreightLineDefinition,
+	stop: FreightStop,
+	startPos: Positioned = character.position
+): boolean {
+	return pickVehicleZoneBrowseSelection(game, character, vehicle, line, stop, startPos) !== undefined
 }

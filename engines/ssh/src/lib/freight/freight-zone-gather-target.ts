@@ -117,7 +117,7 @@ export function pickGatherTargetInZoneStop(
 			const goodsAtTile = hex.looseGoods.getGoodsAt(tile.position)
 			for (const good of goodsAtTile) {
 				const gt = good.goodType as GoodType
-				if (good.available && gt in goodCounts) goodCounts[gt]!++
+				if (good.claimedBy === undefined && !good.isRemoved && gt in goodCounts) goodCounts[gt]!++
 			}
 		}
 	} else {
@@ -127,7 +127,8 @@ export function pickGatherTargetInZoneStop(
 				const goodsAtTile = hex.looseGoods.getGoodsAt(pos)
 				for (const good of goodsAtTile) {
 					const gt = good.goodType as GoodType
-					if (good.available && gt in goodCounts) goodCounts[gt]!++
+					if (good.claimedBy === undefined && !good.isRemoved && gt in goodCounts)
+						goodCounts[gt]!++
 				}
 				return false
 			},
@@ -144,10 +145,13 @@ export function pickGatherTargetInZoneStop(
 	if (zoneStop.zone.kind === 'named') {
 		for (const tile of scanTiles ?? []) {
 			if (
-				!tile.availableGoods.some(
-					(good) => good.available && !good.isRemoved && good.goodType === targetGood.good
+					!tile.availableGoods.some(
+						(good) =>
+							good.claimedBy === undefined &&
+							!good.isRemoved &&
+							good.goodType === targetGood.good
+					)
 				)
-			)
 				continue
 			const path = hex.findPath(startPos, tile.position, Number.POSITIVE_INFINITY, true)
 			if (!path) continue

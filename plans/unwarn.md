@@ -5,38 +5,34 @@
 Run a small simulation (soviet/chopsaw/…) and collect warnings; solve them one by one (pick, solve,
 then collect again).
 
-### Handoff (2026-09-10)
+### Loose-good claim + two-phase zone query (DONE 2026-09-11)
 
-**Collector harness** — `engines/ssh/sandbox/collect-warnings.test.ts`. Runs the `soviet` world
-(seed 549, 6 chars) for 120 virtual seconds via `tickerCallback({ elapsedMS: 250 })`, buckets every
-`warn`/`assert`/`error` diagnostic, and writes `sandbox/collect-warnings.out.txt`. Run with:
+Symptom was `planGrabLoose: no matching loose goods (idle)` firing when the zone-browse pick
+named a tile/good at decision time but the good was gone at grab time. Fixed:
 
-```bash
-npx vitest run --config sandbox/diag.vitest.config.ts sandbox/collect-warnings.test.ts
-```
+- Claim model (`board/looseGoods.ts`): `LooseGood.claimedBy: Commitment | undefined`, `available`
+  derived. `allocate` fails when claimed/removed; `onFulfilled → remove`,
+  `onCancelled → clear + bump`. `removeKnownGood` cancels the claim before unlinking. `applyDecay`
+  no longer skips claimed goods — decay cancels (`loose-decayed`) then removes. Claim acquire and
+  release both bump work planning (`loose-good.claim` / `loose-good.unclaim`). `findAndAllocate`
+  requires an explicit owner commitment. Hot filters read `claimedBy === undefined && !isRemoved`
+  directly (no derived-getter reactivity risk).
+- Two-phase zone query (`freight/vehicle-zone-browse.ts`): `findVehicleZoneBrowseSelection`
+  (exist?, no pathfinding, axial-distance scoring, no cache) vs `pickVehicleZoneBrowseSelection`
+  (path?, walks ranked load matches best-first with one `pathToTile` each, provide merged by
+  score). `zoneBrowseCache` deleted. `shouldAdvancePastZoneStop` and `freightStopMovementTarget`
+  are reachability-aware (`zoneBrowseHasReachableMatch`, reachable-pick-first fallback).
+- Provide side unchanged (no loose claim).
 
-The test overrides `setTraceDiagnosticReporter` + `console.warn/error` locally so `afterEach`'s
-disallowed-diagnostic check sees an empty set; output is written to a file because `console.log` is
-suppressed in the diag config.
+Verified: typecheck clean; 22 passed (loose_goods, tile-blocking, vehicle-work-pick,
+soviet-example) + 138 passed (zone-hop, arbitration, hop-prepare, freight-dock, offload-job,
+character-vehicle).
 
-**Wave 1 result** — two distinct diagnostics:
+Remaining: re-run soviet collector, expect the `planGrabLoose` warn gone or reduced to rare races.
 
-1. ~~`queue.waiter.free-front` (×2, `passed: true`)~~ — **fixed**. The watchdog
-   (`HexBoard.scanQueueWaiters`, `board.ts`) warned whenever a waiter sat at the front of its queue
-   in the transient window between `QueueStep.pass()`/`fulfill()` (sets `ended`) and the clock's
-   next `progress()` firing `onComplete`. That event *did* fire (`passed === true`); the diagnostic's
-   intent is to catch the pass event *never* firing (`passed === false`). Guard: `if (!step.passed)`
-   before the warn. Re-collected: gone. `queue-watchdog.test.ts` still 2/2.
-
-2. **`High loop count in nextStep, throttling`** (`work.goWork` / `walk.until`) — **remaining,
-   pre-existing, out of blocking-items scope.** Spins in the npc-script VM (`nextStep` loop in
-   `npcs/object.ts`): a script re-`unshift`s nested `ScriptExecution`s 50+ times with no `ASingleStep`
-   yielded. Confirmed pre-existing by reverting `board.ts`/`entity.ts`/`construction-demolition.ts`
-   (still fires). Related known-signal notes: LLM.md "Action infinite fail / High loop count"
-   (lastMakeRun `{ type: "return", valueKind: "undefined" }` → `goWork` finished in one run with no
-   step, planner re-selects same job). This is a script-VM / planner-re-selection bug, not a
-   blocking/alveolus issue. Needs its own investigation pass.
-
-**Remaining manual checks** (item 5): `5b` block an alveolus (goods + vehicle) and read the list;
-`5c` demolish an occupied bay and confirm the vehicle sits in another alveolus (now unit-covered by
-`vehicle-relocation.test.ts`, but not yet verified in the live browser).
+Note (reverted during verification): materializing `tilesAround` (auto-`ensureGeneratedTiles`
+inside the disc scan) changed maintenance-offload behavior — newly visible generated burdens
+surfaced a `loadFromBurden` candidate that the joint-line check (tile-identity compare) does not
+suppress, breaking `vehicle-zone-hop` "instead of maintenance offload". Reverted to plain
+`tilesAround`; unstreamed coords stay invisible to the maintenance scan until streamed. If
+revisited, the joint-line check needs object-identity awareness first.

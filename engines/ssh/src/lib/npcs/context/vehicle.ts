@@ -241,7 +241,7 @@ class VehicleFunctions {
 			jobPlan.offloadPickupPlan = svc.offloadPickupPlan
 			return
 		}
-		if (!svc.looseGood.available || svc.looseGood.isRemoved) {
+		if (svc.looseGood.claimedBy !== undefined || svc.looseGood.isRemoved) {
 			jobPlan.vehicleApproachAborted = true
 			traces.vehicle(vehicle).log?.('vehicleOffload pickup: stale loose good before binding pickup plan', {
 				characterUid: debugObjectId(character) ?? '',

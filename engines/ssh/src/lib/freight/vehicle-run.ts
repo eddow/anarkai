@@ -38,7 +38,12 @@ import {
 	freightVehicleDockBay,
 	syncFreightVehicleDockRegistration,
 } from 'ssh/freight/vehicle-freight-dock-sync'
-import { pickVehicleZoneBrowseSelection, zoneBrowseUrgency } from 'ssh/freight/vehicle-zone-browse'
+import {
+	findVehicleZoneBrowseSelection,
+	pickVehicleZoneBrowseSelection,
+	zoneBrowseHasReachableMatch,
+	zoneBrowseUrgency,
+} from 'ssh/freight/vehicle-zone-browse'
 import type { Game } from 'ssh/game/game'
 import type { Character } from 'ssh/population/character'
 import type { Vehicle } from 'ssh/population/vehicle/entity'
@@ -79,7 +84,7 @@ export function vehicleNeedsParkingOnCurrentTile(vehicle: Vehicle): boolean {
 	return false
 }
 
-/** Tile center for an anchor stop; best loose-good tile target for a gather zone stop. */
+/** Tile center for an anchor stop; best reachable loose-good tile target for a gather zone stop. */
 export function freightStopMovementTarget(
 	game: Game,
 	character: Character,
@@ -93,8 +98,11 @@ export function freightStopMovementTarget(
 	if ('zone' in stop) {
 		const vehicle = character.operates
 		if (vehicle) {
+			// Reachability-aware: an unreachable-but-present good must not become the drive target.
 			const pick = pickVehicleZoneBrowseSelection(game, character, vehicle, line, stop)
 			if (pick) return pick.targetTile.position
+			const exist = findVehicleZoneBrowseSelection(game, character, vehicle, line, stop)
+			if (exist) return exist.targetTile.position
 		}
 		return freightZoneFallbackPosition(game, stop.zone)
 	}
@@ -233,7 +241,7 @@ export function stopHasPotentialVehicleTransfer(
 	const stopIndex = line.stops.indexOf(stop)
 	if (stopIndex < 0) return false
 	if ('zone' in stop && character) {
-		return !!pickVehicleZoneBrowseSelection(game, character, vehicle, line, stop)
+		return !!findVehicleZoneBrowseSelection(game, character, vehicle, line, stop)
 	}
 
 	const neededHere = measureFreightStopNeededGoods(game, line, stopIndex).perGood
@@ -346,7 +354,7 @@ function findBeginServiceActionableWork(
 		for (const segment of gatherSegs) {
 			const zoneLoad = line.stops[segment.loadStopIndex]
 			if (!zoneLoad || !('zone' in zoneLoad)) continue
-			const selection = pickVehicleZoneBrowseSelection(
+			const selection = findVehicleZoneBrowseSelection(
 				game,
 				character as Character,
 				vehicle,
@@ -411,7 +419,7 @@ function findBeginServiceActionableWork(
 	for (const [idx, stop] of line.stops.entries()) {
 		if (!('zone' in stop)) continue
 		if (!line.cyclic && vehicleStorageStockCount(vehicle) <= 0 && idx !== 0) continue
-		const selection = pickVehicleZoneBrowseSelection(
+		const selection = findVehicleZoneBrowseSelection(
 			game,
 			character as Character,
 			vehicle,
@@ -448,7 +456,7 @@ function findBeginServiceActionableWork(
  * line's primary stop; ties favor lines whose goods policy matches current vehicle stock.
  *
  * This is character-independent: `findBeginServiceActionableWork` passes `vehicle.effectivePosition`
- * (not `character.position`) to every `pickVehicleZoneBrowseSelection` it makes, and the trade-stop
+ * (not `character.position`) to every `findVehicleZoneBrowseSelection` it makes, and the trade-stop
  * branch of `stopHasPotentialVehicleTransfer` never reads the character. It is recomputed once per
  * (character × vehicle) in `pickMaintenanceForVehicle`, `findVehicleBeginServiceLeg`, and
  * `findVehicleApproachJob`, so cache it per `(vehicle, candidateVersion)` — `candidateVersion`
@@ -612,8 +620,9 @@ function shouldAdvancePastZoneStop(
 	stop: FreightStop & { zone: FreightZoneDefinition },
 	startPos: Position = character.position
 ): boolean {
-	if (pickVehicleZoneBrowseSelection(game, character, vehicle, line, stop, startPos)) return false
-	return true
+	// Reachability-aware: an unreachable-but-present good must read as "nothing to do" so the
+	// vehicle advances instead of stalling on a stop it can never service.
+	return !zoneBrowseHasReachableMatch(game, character, vehicle, line, stop, startPos)
 }
 
 function vehicleStorageStockCount(vehicle: Vehicle): number {

@@ -417,7 +417,7 @@ export function measureZoneLooseGoodsSource(
 	const perGood: Partial<Record<GoodType, number>> = {}
 	for (const tile of listTilesInAxialRadius(game, center, radius)) {
 		for (const loose of tile.availableGoods) {
-			if (!loose.available || loose.isRemoved) continue
+			if (loose.claimedBy !== undefined || loose.isRemoved) continue
 			const gt = loose.goodType as GoodType
 			if (!allowedGoods.has(gt)) continue
 			perGood[gt] = (perGood[gt] ?? 0) + 1
@@ -614,7 +614,7 @@ export function measureFreightStopProvidedGoods(
 			const perGood: Partial<Record<GoodType, number>> = {}
 			for (const tile of freightZoneTiles(game, stop.zone)) {
 				for (const loose of tile.availableGoods) {
-					if (!loose.available || loose.isRemoved) continue
+					if (loose.claimedBy !== undefined || loose.isRemoved) continue
 					const gt = loose.goodType as GoodType
 					if (!allowedGoodsSet.has(gt)) continue
 					perGood[gt] = (perGood[gt] ?? 0) + 1

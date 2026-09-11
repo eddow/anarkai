@@ -168,7 +168,7 @@ function bestFoodAt(character: ActivityPlanningCharacter, coord: AxialCoord): Go
 	}
 
 	for (const looseGood of hex.looseGoods.getGoodsAt(coord)) {
-		if (!looseGood.available || looseGood.isRemoved) continue
+		if (looseGood.claimedBy !== undefined || looseGood.isRemoved) continue
 		const strength = satiationForGood(looseGood.goodType)
 		if (strength > 0 && (!best || strength > best.strength))
 			best = { type: looseGood.goodType, strength }

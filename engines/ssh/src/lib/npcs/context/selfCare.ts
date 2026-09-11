@@ -27,7 +27,7 @@ class SelfCareFunctions {
 		const coord = toAxialCoord(tile.position)
 		const loose = hex.looseGoods
 			.getGoodsAt(coord)
-			.find((g) => g.goodType === goodType && g.available && !g.isRemoved)
+			.find((g) => g.goodType === goodType && g.claimedBy === undefined && !g.isRemoved)
 		if (loose) {
 			const commitment = new Commitment(`personal.loose.${goodType}`)
 			const result = loose.allocate(commitment)
@@ -59,7 +59,7 @@ class SelfCareFunctions {
 		const coord = toAxialCoord(tile.position)
 		const looseCandidates = hex.looseGoods
 			.getGoodsAt(coord)
-			.filter((g) => g.goodType === goodType && g.available && !g.isRemoved)
+			.filter((g) => g.goodType === goodType && g.claimedBy === undefined && !g.isRemoved)
 		let source: EatWorldSource
 		if (looseCandidates.length > 0) {
 			source = { kind: 'loose', looseGood: looseCandidates[0]! }

@@ -38,7 +38,7 @@ export function queryTileBlocking(tile: Tile): TileBlockingEntry[] {
 	for (const good of tile.board.looseGoods.getGoodsAt(coord)) {
 		const group = grouped.get(good.goodType) ?? { count: 0, available: 0 }
 		group.count += 1
-		if (good.available) group.available += 1
+		if (good.claimedBy === undefined && !good.isRemoved) group.available += 1
 		grouped.set(good.goodType, group)
 	}
 	for (const [goodType, group] of grouped) {

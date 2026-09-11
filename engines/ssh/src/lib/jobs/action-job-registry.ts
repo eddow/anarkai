@@ -255,6 +255,10 @@ registerActionJobProvider('plant', (alveolus) => {
 		const startPos = toAxialCoord(characterPosition ?? alveolus.tile.position)
 		const hex = alveolus.tile.game.hex
 		const candidateCoords = [...assignedZones].flatMap((def) => hex.zoneManager.coordsForZone(def))
+		// The zone may span unstreamed coords (no content yet): pathfinding treats those as
+		// walls and `getTile` fabricates empty shells, so materialize the candidates up
+		// front — here, outside the search, where board mutation is safe.
+		hex.game.ensureGeneratedTiles(candidateCoords)
 		let bestPath: Positioned[] | undefined
 
 		for (const coord of candidateCoords) {

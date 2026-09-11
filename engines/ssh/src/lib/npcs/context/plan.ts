@@ -222,7 +222,7 @@ const pickupPlanHandler: PlanHandler<PickupPlan> = {
 			const coord = toAxialCoord(target)
 			const looseGoods = character.game.hex.looseGoods.getGoodsAt(coord)
 			const matchingLooseGoods = looseGoods.filter(
-				(good) => good.goodType === goodType && good.available
+				(good) => good.goodType === goodType && good.claimedBy === undefined
 			)
 
 			if (matchingLooseGoods.length === 0) {

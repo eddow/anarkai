@@ -634,7 +634,7 @@ class WorkFunctions {
 
 				moving = character.game.hex.looseGoods.add(from, movement.goodType, {
 					position: from,
-					available: false,
+					unavailable: true,
 				})
 				traces.convey({ character, alveolus }).log?.(
 					`[conveyStep] visual good ${movement.goodType} ref#${movementRefId(movement.ref)} from=${axial.key(from)} to=${axial.key(hop)}`,

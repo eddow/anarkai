@@ -171,10 +171,24 @@ export function withScripted<T extends abstract new (...args: any[]) => GameObje
 					// A script spinning without yielding a step is a real bug (infinite
 					// loop in script logic). Surface at error level — test diagnostics
 					// fail on it unless explicitly allowed — then throttle.
+					// NOTE: raw `value` (ScriptExecution/ASingleStep) projects as
+					// `$unprojected` in traces, so also emit JSON-safe summaries.
+					const subject = npcSubjectSnapshot(this)
+					const planner = plannerSnapshotsFromSubject(this)
 					traces.npc(this).error?.('High loop count in nextStep, throttling', {
+						subject,
 						executingName,
 						type,
-						value,
+						valueKind: summarizeScriptRunValueKind(value),
+						valueSummary:
+							value instanceof ScriptExecution
+								? summarizeScriptExecutionForInfiniteFail(value)
+								: undefined,
+						loopTail: loopEntriesForNpcTrace(loopCount, 10),
+						runningScripts: this.runningScripts.map((s) =>
+							summarizeScriptExecutionForInfiniteFail(s)
+						),
+						planner,
 					})
 					this.runningScripts = []
 					this.stepExecutor = new PonderingStep(this as any, 0.25)

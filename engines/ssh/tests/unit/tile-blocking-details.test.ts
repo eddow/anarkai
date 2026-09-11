@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { queryTileBlocking, transformStallReasons } from 'ssh/board/blocking-details'
+import { Commitment } from 'ssh/commitment'
 import { TransformAlveolus } from 'ssh/hive/transform'
 import { Deposit, UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import { createAlveolus } from 'ssh/hive'
@@ -35,7 +36,8 @@ describe('queryTileBlocking', () => {
 			game.hex.looseGoods.add(tile, 'wood', { position: tile.position })
 			game.hex.looseGoods.add(tile, 'wood', { position: tile.position })
 			const reserved = game.hex.looseGoods.add(tile, 'stone', { position: tile.position })
-			reserved.available = false
+			const claim = new Commitment('test.tile-blocking.reserved')
+			reserved.allocate(claim)
 
 			const entries = queryTileBlocking(tile)
 			const wood = entries.find((e) => e.kind === 'loose-good' && e.goodType === 'wood')
@@ -47,6 +49,7 @@ describe('queryTileBlocking', () => {
 				count: 1,
 				available: 0,
 			})
+			claim.cancel('test-cleanup')
 		} finally {
 			await engine.destroy()
 		}

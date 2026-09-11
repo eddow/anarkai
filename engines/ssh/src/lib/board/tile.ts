@@ -277,7 +277,10 @@ export class Tile extends withInteractive(GameObject) {
 	}
 
 	// Fresh by design: pathfinding and neighbor scans must not subscribe callers to a cached
-	// reactive derivation over every traversed tile.
+	// reactive derivation over every traversed tile. No generation here either: `walkNeighbors`
+	// runs inside `wrapInert` pathfinding floods, and materializing tiles mid-flood would mutate
+	// the board under the search (plus `getTile` fabricates empty `Tile` shells for unstreamed
+	// coords, so the `tile?.content` gate below already treats them as walls).
 	get walkNeighbors(): NeighborInfo[] {
 		const coord = toAxialCoord(this.position)
 		const neighbors = axial.neighbors(coord)
@@ -301,7 +304,7 @@ export class Tile extends withInteractive(GameObject) {
 
 	// REHABILITATED MEMOIZE
 	get availableGoods(): LooseGood[] {
-		return this.looseGoods.filter((g) => g.available)
+		return this.looseGoods.filter((g) => g.claimedBy === undefined && !g.isRemoved)
 	}
 }
 

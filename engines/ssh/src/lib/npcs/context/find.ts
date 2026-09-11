@@ -56,7 +56,7 @@ class FindFunctions {
 
 			const looseGoodsArr = hex.looseGoods.getGoodsAt(axialCoord)
 			for (const looseGood of looseGoodsArr) {
-				if (!looseGood.available || looseGood.isRemoved) continue
+				if (looseGood.claimedBy !== undefined || looseGood.isRemoved) continue
 				const def: Ssh.GoodsDefinition = goodsCatalog[looseGood.goodType]
 				if (!def) continue
 				const s = def.satiationStrength ?? 0

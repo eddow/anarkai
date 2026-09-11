@@ -1,3 +1,4 @@
+import { Commitment } from 'ssh/commitment'
 import type { Tile } from 'ssh/board/tile'
 import { Game } from 'ssh/game/game'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -40,7 +41,6 @@ describe('LooseGoods', () => {
 		const startTile = game.hex.getTile({ q: 0, r: 0 }) as Tile
 		const moving = game.hex.looseGoods.add(startTile, 'wood', {
 			position: startTile.position,
-			available: false,
 		})
 
 		moving.position = { q: 1, r: 0 }
@@ -57,10 +57,6 @@ describe('LooseGoods', () => {
 		const woodB = game.hex.looseGoods.add(tile, 'wood', { position: tile.position })
 		const mushrooms = game.hex.looseGoods.add(tile, 'mushrooms', { position: tile.position })
 		const stone = game.hex.looseGoods.add(tile, 'stone', { position: tile.position })
-		const allocatedWood = game.hex.looseGoods.add(tile, 'wood', {
-			position: tile.position,
-			available: false,
-		})
 
 		;(game as any).random = vi.fn(() => 0.5)
 
@@ -72,8 +68,64 @@ describe('LooseGoods', () => {
 		expect(woodB.isRemoved).toBe(true)
 		expect(mushrooms.isRemoved).toBe(true)
 		expect(stone.isRemoved).toBe(false)
-		expect(allocatedWood.isRemoved).toBe(false)
-		expect(remainingGoods).toEqual(expect.arrayContaining([stone, allocatedWood]))
-		expect(remainingGoods).toHaveLength(2)
+		expect(remainingGoods).toEqual([stone])
+	})
+
+	describe('claims', () => {
+		it('prevents a second claim on the same good', () => {
+			const tile = game.hex.getTile({ q: 0, r: 0 }) as Tile
+			const good = game.hex.looseGoods.add(tile, 'wood', { position: tile.position })
+			const first = new Commitment('test.claim.first')
+			const second = new Commitment('test.claim.second')
+
+			expect(good.allocate(first)).toBeUndefined()
+			expect(good.claimedBy).toBe(first)
+			expect(good.available).toBe(false)
+
+			expect(good.allocate(second)).toBe('LooseGood already allocated')
+			expect(good.claimedBy).toBe(first)
+
+			first.cancel('test-cleanup')
+			second.cancel('test-cleanup')
+		})
+
+		it('frees the good when its claim is cancelled', () => {
+			const tile = game.hex.getTile({ q: 0, r: 0 }) as Tile
+			const good = game.hex.looseGoods.add(tile, 'wood', { position: tile.position })
+			const claim = new Commitment('test.claim.cancel')
+
+			good.allocate(claim)
+			claim.cancel('test.cancel')
+
+			expect(good.claimedBy).toBeUndefined()
+			expect(good.available).toBe(true)
+			expect(good.isRemoved).toBe(false)
+		})
+
+		it('removes the good when its claim is fulfilled', () => {
+			const tile = game.hex.getTile({ q: 0, r: 0 }) as Tile
+			const good = game.hex.looseGoods.add(tile, 'wood', { position: tile.position })
+			const claim = new Commitment('test.claim.fulfill')
+
+			good.allocate(claim)
+			claim.fulfill()
+
+			expect(good.isRemoved).toBe(true)
+			expect(game.hex.looseGoods.getGoodsAt(tile.position)).toHaveLength(0)
+		})
+
+		it('cancels an outstanding claim when the good decays', () => {
+			const tile = game.hex.getTile({ q: 0, r: 0 }) as Tile
+			const good = game.hex.looseGoods.add(tile, 'wood', { position: tile.position })
+			const claim = new Commitment('test.claim.decay')
+
+			good.allocate(claim)
+			;(game as any).random = vi.fn(() => 0.5)
+
+			game.hex.looseGoods.applyDecay(1e9)
+
+			expect(good.isRemoved).toBe(true)
+			expect(claim.ended).toBe('loose-decayed')
+		})
 	})
 })

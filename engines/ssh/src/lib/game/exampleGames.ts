@@ -993,6 +993,14 @@ export const soviet = {
 	dwellings: [],
 	shops: [],
 	playerAccount: { balanceVp: 200 },
+	// Bridge at q=-25 (tiles -25,1..3): the two borders make the river-channel
+	// crossing passable at normal speed (bridge, no road bonus).
+	roads: {
+		path: [
+			[-25, 1.5],
+			[-25, 2.5],
+		],
+	},
 	vehicles: [
 		{
 			name: 'soviet:wheelbarrow1',

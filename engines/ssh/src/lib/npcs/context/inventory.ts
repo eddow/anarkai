@@ -383,7 +383,7 @@ export class InventoryFunctions {
 		const matchingLooseGoods = looseGoods.filter(
 			(good) =>
 				(goodType ? good.goodType === goodType : transport.hasRoom(good.goodType)) &&
-				good.available &&
+				good.claimedBy === undefined &&
 				!good.isRemoved
 		)
 

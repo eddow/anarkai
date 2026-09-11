@@ -43,6 +43,7 @@ import {
 	vehicleNeedsParkingOnCurrentTile,
 } from 'ssh/freight/vehicle-run'
 import {
+	findVehicleZoneBrowseSelection,
 	inferZoneLoadAdSource,
 	pickVehicleZoneBrowseSelection,
 	type VehicleZoneBrowseSelection,
@@ -1108,7 +1109,7 @@ function isJointLineLoadCandidate(
 				})
 				continue
 			}
-			const selection = pickVehicleZoneBrowseSelection(
+			const selection = findVehicleZoneBrowseSelection(
 				vehicle.game,
 				character,
 				vehicle,
@@ -1466,7 +1467,7 @@ function maintenanceServiceToJob(
 		path,
 	}
 	if (service.kind === 'loadFromBurden') {
-		if (!service.looseGood.available || service.looseGood.isRemoved) return undefined
+		if (service.looseGood.claimedBy !== undefined || service.looseGood.isRemoved) return undefined
 		return {
 			...base,
 			maintenanceKind: 'loadFromBurden',
@@ -1930,7 +1931,7 @@ function zoneBrowseJobFromTileLooseLoad(
 	const downstreamNeed = utility?.remainingNeededGoods ?? {}
 	const pick = loose.find(
 		(g) =>
-			g.available &&
+			g.claimedBy === undefined &&
 			!g.isRemoved &&
 			selectable.includes(g.goodType as GoodType) &&
 			storage.hasRoom(g.goodType as GoodType) > 0 &&
