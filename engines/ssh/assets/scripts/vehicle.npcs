@@ -136,11 +136,13 @@ function vehicleHop(jobPlan)
 	end if
 end function
 
-// TODO: batch offloading: grab several, drop several; Use zone load/unload when finished
 function vehicleOffload(jobPlan)
 	if not I.driving then
 		approachVehicle jobPlan
-		if jobPlan.vehicleApproachAborted then return
+		if jobPlan.vehicleApproachAborted then
+			walk.pause
+			return
+		end if
 	end if
 	kind = vehicle.maintenanceKind()
 	if kind == "park" then
@@ -149,6 +151,9 @@ function vehicleOffload(jobPlan)
 		if targetPath.length > 0 then walk.until targetPath
 		walk.enter
 		vehicle.completeVehicleMaintenanceService jobPlan
+		// Park arrival is otherwise step-free when already at the target: yield so the
+		// planner re-runs next tick instead of tight-looping `nextStep` (dorm throttle).
+		walk.pause
 		return
 	end if
 	if kind == "unloadToTile" then

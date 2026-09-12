@@ -35,6 +35,7 @@ export {
 	harvestTravelFatiguePerStep,
 	waitForIncomingGoodsPollSeconds,
 } from './tuning/jobs'
+export { districtSpawning } from './tuning/districts'
 export { activityUtilityConfig } from './tuning/planner'
 export { gameMaxTickDeltaSeconds, gameRootSpeed, gameTimeSpeedFactors } from './tuning/simulation'
 

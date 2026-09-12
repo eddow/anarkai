@@ -118,10 +118,11 @@ it can.
   `X` seconds of **game time** via the `Clock` scheduler (`game.clock.begin(step, ds)`; `complete()`
   returns the next `remainingDs` to reschedule) — never per simulation tick, and never wall-clock.
   Transient needs emit once.
-- **Tunability (TODO).** Auto-nudging should be tunable per philosophy ("race") — e.g. the `soviet`
-  race defaults toward **autarky** (prefer internal self-hauling/spawning over nudging external
-  commerce). Nudge strength, decay rate, spawn threshold, and the autarky bias are **content tuning**,
-  not hardcoded.
+- **Tunability.** Spawner cadence lives in `rules` (`tuning/districts.ts` →
+  `Game.districtSpawning`, reactive): spawn cooldowns, the commercial observation
+  threshold, and both sensing radii. Auto-nudging strength / decay / autarky bias
+  per philosophy ("race") remain open — e.g. the `soviet` race defaulting toward
+  **autarky** (prefer internal self-hauling/spawning over nudging external commerce).
 
 ### Player agency
 

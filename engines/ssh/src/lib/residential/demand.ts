@@ -5,8 +5,6 @@ import type { Game } from 'ssh/game/game'
 import { GameObject } from 'ssh/game/object'
 import {
 	residentialBasicDwellingSite,
-	residentialHousingDemandRadius,
-	residentialProjectSpawnCooldownSeconds,
 } from 'ssh/residential/constants'
 import { axial } from 'ssh/utils'
 import { toAxialCoord } from 'ssh/utils/position'
@@ -68,8 +66,8 @@ export function trySpawnResidentialProject(game: Game): void {
 		if (!tile.isClear) continue
 		const center = toAxialCoord(tile.position)
 		if (!center) continue
-		const people = countPeopleNear(game, center, residentialHousingDemandRadius)
-		const freeSlots = countFreeDwellingSlotsNear(game, center, residentialHousingDemandRadius)
+		const people = countPeopleNear(game, center, game.districtSpawning.residentialHousingDemandRadius)
+		const freeSlots = countFreeDwellingSlotsNear(game, center, game.districtSpawning.residentialHousingDemandRadius)
 		const pressure = Math.max(0, people - freeSlots)
 		if (pressure <= 0) continue
 		candidates.push({ pressure, q: center.q, r: center.r })
@@ -113,7 +111,7 @@ export class ResidentialDemandTicker extends GameObject {
 
 	update(deltaSeconds: number): void {
 		this.cooldownSeconds += deltaSeconds
-		if (this.cooldownSeconds < residentialProjectSpawnCooldownSeconds) return
+		if (this.cooldownSeconds < this.game.districtSpawning.residentialSpawnCooldownSeconds) return
 		this.cooldownSeconds = 0
 		trySpawnResidentialProject(this.game)
 	}

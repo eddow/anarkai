@@ -388,9 +388,12 @@ export class InventoryFunctions {
 		)
 
 		if (matchingLooseGoods.length === 0) {
-			// Loose goods can disappear between pathfinding and execution (another worker picks them,
-			// they are reserved, etc). Fail softly so the caller can re-plan instead of breaking the
-			// whole reactive batch — but surface *why* so the dead-loop is diagnosable.
+			// Loose goods can disappear between zone pick and grab execution (another driver
+			// claims first, decay removes the unit, construction consumes it). The pick→walk
+			// window spans seconds, so with several drivers on one gather line plus finite
+			// half-lives (wood 900s, mushrooms 600s) an occasional miss is normal contention,
+			// not a planner bug: idle 0.1s and replan next tick. Log (not warn) to keep the
+			// unwarn collector clean while preserving the payload for dead-loop debugging.
 			traces.vehicle(character.operates ?? character).warn?.('planGrabLoose: no matching loose goods (idle)', {
 				characterUid: debugObjectId(character) ?? '',
 				characterName: character.name,

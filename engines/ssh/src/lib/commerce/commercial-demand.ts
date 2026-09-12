@@ -1,4 +1,4 @@
-import type { ShopType } from 'engine-rules'
+import { type ShopType } from 'engine-rules'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { Tile } from 'ssh/board/tile'
 import { Shop } from 'ssh/commerce/shop'
@@ -16,7 +16,7 @@ import { traces } from '../dev/debug.ts'
  * clear, zoned, **road-adjacent** `UnBuiltLand` tile (the road-adjacency is the
  * "every estate must touch a road" delivery-tile rule from `plans/districts.md`).
  * The trigger is **cumulative observation**, not instantaneous pressure — a shop only
- * spawns after a candidate has had shoppers for {@link commercialObservationThreshold}
+ * spawns after a candidate has had shoppers for {@link game.districtSpawning.commercialObservationThreshold}
  * more passes than not, so a transient shortage never commits a shop and shops emerge
  * one by one rather than all at once.
  *
@@ -24,18 +24,6 @@ import { traces } from '../dev/debug.ts'
  * diversification (production-seeded `construction_materials`, etc.) and the exact
  * spawn rule remain open — see `plans/districts.md`.
  */
-
-/** Axial distance a candidate shop tile senses shoppers across. */
-export const commercialShopSensingRadius = 12
-
-/** Minimum seconds between commercial shop spawn evaluations. */
-export const commercialShopSpawnCooldownSeconds = 2
-
-/**
- * Net positive-observation evidence required to commit a shop. Each pass with ≥1
- * shopper adds 1, each pass with none subtracts 1 (clamped to `[0, threshold]`).
- */
-export const commercialObservationThreshold = 3
 
 /** The shop type the population-driven spawner places (food = highest urgency). */
 export const commercialDefaultShopType: ShopType = 'grocery'
@@ -78,7 +66,7 @@ function collectCommercialCandidates(game: Game): CommercialCandidate[] {
 		out.push({
 			key: axial.key(coord),
 			tile,
-			shoppers: countShoppersNear(game, coord, commercialShopSensingRadius),
+			shoppers: countShoppersNear(game, coord, game.districtSpawning.commercialShopSensingRadius),
 		})
 	}
 	// Deterministic order so the "first shop wins" pick is reproducible.
@@ -102,13 +90,14 @@ function placeCommercialShop(game: Game, tile: Tile, shopType: ShopType): Shop {
  * Evaluate commercial demand and place **at most one** shop. Advances the per-tile
  * cumulative-observation evidence in `observations` (keyed by axial key): `+1` per
  * pass with shoppers, `−1` per empty pass, clamped to `[0, threshold]`. The first
- * candidate whose evidence reaches {@link commercialObservationThreshold} (highest
+ * candidate whose evidence reaches {@link game.districtSpawning.commercialObservationThreshold} (highest
  * shopper count, then lowest coord) is committed and its evidence reset.
  *
  * @returns `true` when a shop was placed this pass.
  */
 export function trySpawnCommercialShop(game: Game, observations: Map<string, number>): boolean {
 	const candidates = collectCommercialCandidates(game)
+	const threshold = game.districtSpawning.commercialObservationThreshold
 
 	const seen = new Set(candidates.map((candidate) => candidate.key))
 	for (const key of [...observations.keys()]) {
@@ -120,11 +109,11 @@ export function trySpawnCommercialShop(game: Game, observations: Map<string, num
 		const acc = observations.get(candidate.key) ?? 0
 		const next = Math.max(
 			0,
-			Math.min(commercialObservationThreshold, acc + (candidate.shoppers > 0 ? 1 : -1))
+			Math.min(threshold, acc + (candidate.shoppers > 0 ? 1 : -1))
 		)
 		if (next === 0) observations.delete(candidate.key)
 		else observations.set(candidate.key, next)
-		if (next < commercialObservationThreshold) continue
+		if (next < threshold) continue
 		if (
 			!best ||
 			candidate.shoppers > best.shoppers ||
@@ -161,7 +150,7 @@ export class CommercialDemandTicker extends GameObject {
 
 	update(deltaSeconds: number): void {
 		this.cooldownSeconds += deltaSeconds
-		if (this.cooldownSeconds < commercialShopSpawnCooldownSeconds) return
+		if (this.cooldownSeconds < this.game.districtSpawning.commercialSpawnCooldownSeconds) return
 		this.cooldownSeconds = 0
 		trySpawnCommercialShop(this.game, this.observations)
 	}

@@ -1,10 +1,19 @@
+import { districtSpawning } from 'engine-rules'
 import type { GoodType } from 'ssh/types/base'
 
-/** Axial distance for housing pressure vs capacity when evaluating a candidate residential tile. */
-export const residentialHousingDemandRadius = 12
+/**
+ * Axial distance for housing pressure vs capacity when evaluating a candidate residential tile.
+ * @deprecated Read `game.districtSpawning.residentialHousingDemandRadius` (live tuning from `rules`).
+ */
+export const residentialHousingDemandRadius =
+	districtSpawning.residentialHousingDemandRadius
 
-/** Minimum seconds between automatic residential project spawn attempts. */
-export const residentialProjectSpawnCooldownSeconds = 2
+/**
+ * Minimum seconds between automatic residential project spawn attempts.
+ * @deprecated Read `game.districtSpawning.residentialSpawnCooldownSeconds` (live tuning from `rules`).
+ */
+export const residentialProjectSpawnCooldownSeconds =
+	districtSpawning.residentialSpawnCooldownSeconds
 
 /** Project id placed on `UnBuiltLand` for the v1 basic dwelling construction consumer. */
 export const residentialBasicDwellingSite = 'residential:basic_dwelling' as const

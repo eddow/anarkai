@@ -3,10 +3,8 @@ import { BuildDwelling } from 'ssh/board/content/build-dwelling'
 import { UnBuiltLand } from 'ssh/board/content/unbuilt-land'
 import type { ZoneDefinition } from 'ssh/board/zone'
 import { isConstructionSiteShell, materialRemainingNeeds } from 'ssh/build-site'
-import { commercialShopSensingRadius } from 'ssh/commerce/commercial-demand'
 import { Shop } from 'ssh/commerce/shop'
 import type { Game } from 'ssh/game/game'
-import { residentialHousingDemandRadius } from 'ssh/residential/constants'
 import type { GoodType } from 'ssh/types/base'
 import type { AxialCoord } from 'ssh/utils/axial'
 import { axial } from 'ssh/utils/axial'
@@ -132,8 +130,12 @@ export function measureZoneTendencies(game: Game, zone: ZoneDefinition): ZoneTen
 	}
 
 	const center = game.hex.zoneManager.centralCoordForZone(zone)
-	const peopleNear = center ? countPeopleNear(game, center, residentialHousingDemandRadius) : 0
-	const shoppers = center ? countPeopleNear(game, center, commercialShopSensingRadius) : 0
+	const peopleNear = center
+		? countPeopleNear(game, center, game.districtSpawning.residentialHousingDemandRadius)
+		: 0
+	const shoppers = center
+		? countPeopleNear(game, center, game.districtSpawning.commercialShopSensingRadius)
+		: 0
 
 	return {
 		demand: demand as Partial<Record<GoodType, number>>,

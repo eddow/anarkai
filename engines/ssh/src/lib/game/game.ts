@@ -4,6 +4,7 @@ import {
 	commerce,
 	defaultNewGameCharacterCount,
 	defaultNewGameCharacterRadius,
+	districtSpawning,
 	gameMaxTickDeltaSeconds,
 	gameplayBootstrapMinRadius,
 	gameRootSpeed,
@@ -620,6 +621,18 @@ export class Game extends Eventful<GameEvents> {
 		maxSelfHaulDistance: commerce.transportAutomation.maxSelfHaulDistance,
 		maxInternalTransfer: commerce.transportAutomation.maxInternalTransfer,
 		minLocalProvision: commerce.transportAutomation.minLocalProvision,
+	})
+	/**
+	 * Reactive district-spawning config, seeded from `districtSpawning`
+	 * and tunable at runtime — the cadence knob both spawners read live.
+	 * See `plans/spontaneous-construction-test.md`.
+	 */
+	public readonly districtSpawning = reactive({
+		residentialSpawnCooldownSeconds: districtSpawning.residentialSpawnCooldownSeconds,
+		commercialSpawnCooldownSeconds: districtSpawning.commercialSpawnCooldownSeconds,
+		commercialObservationThreshold: districtSpawning.commercialObservationThreshold,
+		residentialHousingDemandRadius: districtSpawning.residentialHousingDemandRadius,
+		commercialShopSensingRadius: districtSpawning.commercialShopSensingRadius,
 	})
 	/**
 	 * Registered freight lines (gather/distribute); merged at bootstrap from hive patches
